@@ -1,0 +1,62 @@
+{% extends "index.html" %}
+
+{% block container %}
+<div class="container-fluid">
+    <div class="text-center my-4">
+        <h2>{{ view.public_name }}</h2>
+        <a href="{{ url_for('public.home') }}">&larr; Retour à la liste des visualisations</a>
+    </div>
+    <div class="contents">
+    <div id="kshfDashboard" style="height: 100vh; width: 100vw;"></div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename= 'js/config.js')}}"></script>
+<script type="module">
+    import * as kshf from "{{ url_for('static', filename='dist/keshif.min.js') }}";
+    
+    kshf.Base.defaultBarHeight = 15;
+    // This is the same initializeDashboard function from the admin dashboard.
+    // In a future refactoring, this could be moved to a shared JS file.
+    function initializeDashboard(data) {
+        window.dashboard = new kshf.Browser({
+            barChartWidth: 100,
+            leftPanelLabelWidth: 160,
+            leftPanelLabelHeight: 200,
+            rightPanelLabelWidth: 160,
+            middlePanelLabelWidth: 160,
+            source: [{
+                name: "{{ view.public_name }}",
+                id: "id",
+                load: function () {
+                    if (Array.isArray(data)) {
+                        data.forEach((d) => { this.createRecord(d); });
+                    }
+                },
+            }],
+            "summaries": window.summaries,
+            "recordDisplay": window.recordDisplay
+        });
+    }
+
+    // Construct the public URLs to fetch the data and config
+    const dataUrl = `{{ url_for('public.load_file', filename=view.data_file.replace('.json', '')) }}?context=explorer`;
+    const configUrl = ('{{ view.config_file }}' === 'default' || !'{{ view.config_file }}') ?
+                      "{{ url_for('static', filename='js/config.js') }}" :
+                      "{{ url_for('public.load_config', filename=view.config_file) }}";
+
+    $.getJSON(dataUrl, function(data) {
+        $.getScript(configUrl)
+            .done(function() {
+                initializeDashboard(data);
+            })
+            .fail(function() {
+                alert('Error: Could not load the visualization configuration.');
+                $('#kshfDashboard').html('<div class="alert alert-danger">Could not load visualization.</div>');
+            });
+    }).fail(function() {
+        alert('Error: Could not load the visualization data.');
+        $('#kshfDashboard').html('<div class="alert alert-danger">Could not load visualization data.</div>');
+    });
+</script>
+{% endblock %}

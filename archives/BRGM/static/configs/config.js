@@ -1,0 +1,2 @@
+var summaries = [];
+var recordDisplay = {};

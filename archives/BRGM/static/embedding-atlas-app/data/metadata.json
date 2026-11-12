@@ -1,0 +1,1 @@
+{"columns": {"id": "_row_index", "text": "text", "embedding": {"x": "projection_x", "y": "projection_y"}, "neighbors": "neighbors"}, "is_static": true, "database": {"type": "wasm", "load": true}}

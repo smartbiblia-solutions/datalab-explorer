@@ -1,0 +1,10 @@
+Flask
+Flask-Bcrypt
+Flask-Cors
+Flask-Login
+Flask-SQLAlchemy
+gunicorn
+pandas
+requests
+openpyxl
+click
