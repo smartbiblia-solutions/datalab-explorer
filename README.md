@@ -53,14 +53,13 @@ GET-only HTTPS requests to hosts in `DATALAB_API_HOSTS`. Redirects are re-checke
 .venv/bin/python -m pytest -q
 npm run typecheck
 npm run build
-npm run test:browser
 ```
 
-Browser tests start their own temporary database on port 5101 and use `/usr/bin/chromium` (override with `CHROMIUM_PATH`).
+There are no automated browser tests: check the Explore tab (list, scatter, map, filters, cohorts) by hand after changing `frontend/` or updating `static/keshif`.
 
 ## Keshif
 
-`static/keshif/` is a copy of the [keshif-plus-custom](https://github.com/smartbiblia-solutions/keshif-plus-custom) fork, pinned to the commit in `static/keshif/VERSION`. Fix the renderer in the fork, then update the copy:
+`static/keshif/` is a copy of the [keshif-plus-custom](https://github.com/smartbiblia-solutions/keshif-plus-custom) fork, pinned to the commit in `static/keshif/VERSION`. Fix the renderer in the fork, then update the copy and check the Explore tab by hand:
 
 ```sh
 bash scripts/update-keshif.sh <commit-or-tag>
