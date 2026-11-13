@@ -1,11 +1,9 @@
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
 import secrets
 import sqlite3
-import uuid
 import click
 from flask import (
     Flask,
@@ -15,16 +13,14 @@ from flask import (
     render_template,
     request,
     session,
-    send_from_directory,
 )
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
-from .db import db, migrate, encode, decode
+from .db import SCHEMA, db, encode, decode, insert_version, uid
 from .data import parse_upload, profile, prepare, validate_fields, dashboard, normalize
 
-
-def uid():
-    return uuid.uuid4().hex
+ROLES = {"viewer": 0, "editor": 1, "owner": 2}
+OBJECT_KINDS = {"dictionary", "dashboard", "snapshot", "cohort", "recipe"}
 
 
 def create_app(test_config=None):
@@ -54,11 +50,7 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
     with app.app_context():
-        connection = db()
-        version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version > 2:
-            raise RuntimeError("Database schema is newer than this application")
-        migrate(connection)
+        db().executescript(SCHEMA)
 
     @app.teardown_appcontext
     def close(_):
@@ -68,6 +60,10 @@ def create_app(test_config=None):
 
     @app.before_request
     def auth():
+        if not app.testing:
+            from .jobs import start_worker
+
+            start_worker(app)
         g.user = (
             db()
             .execute("SELECT id,username FROM users WHERE id=?", (session.get("user"),))
@@ -115,15 +111,8 @@ def create_app(test_config=None):
 
     @app.get("/health")
     def health():
-        return jsonify(
-            status="ok",
-            schema=db().execute("PRAGMA user_version").fetchone()[0],
-            build=(root / "static/dist/manifest.json").exists(),
-        )
-
-    @app.get("/vendor/<path:filename>")
-    def vendor(filename):
-        return send_from_directory(root / "vendor/keshif", filename)
+        db().execute("SELECT 1")
+        return jsonify(status="ok")
 
     @app.get("/api/session")
     def who():
@@ -167,13 +156,6 @@ def create_app(test_config=None):
         db().commit()
         click.echo("Account created")
 
-    @app.cli.command("worker")
-    @click.option("--once", is_flag=True)
-    def worker(once):
-        from .jobs import run_worker
-
-        run_worker(once)
-
     def project(pid, level="viewer"):
         p = (
             db()
@@ -185,11 +167,7 @@ def create_app(test_config=None):
         )
         if not p:
             abort(404)
-        if {"viewer": 0, "editor": 1, "owner": 2}[p["role"]] < {
-            "viewer": 0,
-            "editor": 1,
-            "owner": 2,
-        }[level]:
+        if ROLES[p["role"]] < ROLES[level]:
             abort(403)
         return p
 
@@ -208,18 +186,7 @@ def create_app(test_config=None):
         return v, decode(v["payload"])
 
     def save_version(pid, rows, parent=None, recipe=None, source=None):
-        vid = uid()
-        payload = {
-            "rows": rows,
-            "fields": profile(rows),
-            "recipe": recipe or [],
-            "source": source or {},
-        }
-        db().execute(
-            "INSERT INTO versions(id,project,parent,payload) VALUES (?,?,?,?)",
-            (vid, pid, parent, encode(payload)),
-        )
-        db().execute("UPDATE projects SET active=? WHERE id=?", (vid, pid))
+        vid = insert_version(pid, rows, parent, recipe, source)
         db().commit()
         return vid
 
@@ -371,7 +338,7 @@ def create_app(test_config=None):
         b = request.get_json()
         kind = b.get("kind")
         value = b.get("payload")
-        if kind not in ("dictionary", "dashboard", "snapshot", "cohort", "recipe"):
+        if kind not in OBJECT_KINDS:
             raise ValueError("Unknown object kind")
         if not isinstance(value, dict):
             raise ValueError("Object payload required")
@@ -485,11 +452,10 @@ def create_app(test_config=None):
             mapping[v["id"]] = uid()
         if b["active"] not in mapping:
             raise ValueError("Unknown active version")
-        allowed = {"dictionary", "dashboard", "snapshot", "cohort", "recipe"}
         for o in b["objects"]:
             p = o["payload"]
             old = p.get("version")
-            if o["kind"] not in allowed or old not in mapping:
+            if o["kind"] not in OBJECT_KINDS or old not in mapping:
                 raise ValueError("Invalid object/version")
             rows = next(rows for v, rows, fields in clean if v["id"] == old)
             fields = profile(rows)
@@ -570,21 +536,15 @@ def create_app(test_config=None):
     def preview(pid):
         project(pid, "owner")
         p = publication(pid, request.get_json())
-        digest = hashlib.sha256(encode(p).encode()).hexdigest()
-        session["review"] = {"pid": pid, "digest": digest}
-        return jsonify(preview=p, digest=digest)
+        return jsonify(preview=p, digest=hashlib.sha256(encode(p).encode()).hexdigest())
 
     @app.post("/api/projects/<pid>/releases")
     def publish(pid):
         project(pid, "owner")
         b = request.get_json()
         p = publication(pid, b)
-        digest = hashlib.sha256(encode(p).encode()).hexdigest()
-        if (
-            b.get("confirmed") is not True
-            or b.get("digest") != digest
-            or session.get("review") != {"pid": pid, "digest": digest}
-        ):
+        # The digest comes from the preview: any change to the projection invalidates it.
+        if b.get("digest") != hashlib.sha256(encode(p).encode()).hexdigest():
             abort(409, "Review is stale; preview the exact public projection again")
         rid = uid()
         db().execute(
@@ -592,7 +552,6 @@ def create_app(test_config=None):
             (rid, pid, encode(p)),
         )
         db().commit()
-        session.pop("review", None)
         return jsonify(id=rid, url="/public/" + rid), 201
 
     @app.post("/api/projects/<pid>/releases/<rid>/revoke")

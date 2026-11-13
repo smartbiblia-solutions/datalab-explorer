@@ -1,20 +1,22 @@
-"""Bounded GET-only worker with durable checkpoints and explicit restart semantics."""
+"""Bounded GET-only API imports with durable checkpoints, run by one background thread."""
 
-import ipaddress
+import json
 import os
 from pathlib import Path
 import re
-import socket
+import threading
 import time
 from urllib.parse import urljoin, urlsplit, parse_qs
 import requests
 from flask import current_app
-from .data import normalize, path_get, profile
-from .db import db, encode, decode
-import uuid
+from .data import normalize, path_get
+from .db import db, encode, decode, insert_version
+
+SECRET_PARAMS = {"api_key", "apikey", "token", "access_token", "password", "secret", "key"}
 
 
 def validate_url(url):
+    """Exact administrator allowlist (DATALAB_API_HOSTS), HTTPS only, no credentials in URLs."""
     p = urlsplit(url)
     allowed = set(
         current_app.config.get("API_HOSTS")
@@ -29,27 +31,7 @@ def validate_url(url):
         or p.hostname not in allowed
     ):
         raise ValueError("Use HTTPS on a server-approved API host (DATALAB_API_HOSTS)")
-    if p.hostname in ("localhost", "metadata.google.internal") or p.hostname.endswith(
-        (".local", ".internal")
-    ):
-        raise ValueError("Internal destinations are forbidden")
-    try:
-        addresses = {
-            a[4][0]
-            for a in socket.getaddrinfo(p.hostname, 443, type=socket.SOCK_STREAM)
-        }
-    except socket.gaierror:
-        # The platform HTTPS proxy can resolve public names unavailable to local DNS.
-        # Exact server-managed allowlisting remains mandatory in that environment.
-        addresses = set()
-    for address in addresses:
-        if not ipaddress.ip_address(address).is_global:
-            raise ValueError("Non-public destination forbidden")
-    if any(
-        k.lower()
-        in {"api_key", "apikey", "token", "access_token", "password", "secret", "key"}
-        for k in parse_qs(p.query)
-    ):
+    if any(k.lower() in SECRET_PARAMS for k in parse_qs(p.query)):
         raise ValueError(
             "Use a server-side credential reference; secrets in URLs are not supported"
         )
@@ -132,7 +114,7 @@ def fetch_page(url, params, headers):
                     raise ValueError("API page exceeds 8 MiB")
         finally:
             response.close()
-        return __import__("json").loads(content)
+        return json.loads(content)
     raise ValueError("Too many redirects")
 
 
@@ -211,16 +193,7 @@ def process_job(job):
             "Page limit reached before exhaustion; narrow the query or raise the limit"
         )
     normalized = normalize(rows, source.get("identity"))
-    vid = uuid.uuid4().hex
-    payload = {
-        "rows": normalized,
-        "fields": profile(normalized),
-        "recipe": [],
-        "source": {
-            "kind": "api",
-            "definition": {k: v for k, v in source.items() if k != "secret_ref"},
-        },
-    }
+    definition = {k: v for k, v in source.items() if k != "secret_ref"}
     # Serialized transaction makes cancellation atomic with final publication of a version.
     db().execute("BEGIN IMMEDIATE")
     if (
@@ -229,13 +202,12 @@ def process_job(job):
     ):
         db().rollback()
         return
-    db().execute(
-        "INSERT INTO versions(id,project,payload) VALUES (?,?,?)",
-        (vid, pid, encode(payload)),
-    )
-    # Refresh rehearsal: do not promote a refresh automatically.
-    db().execute(
-        "UPDATE projects SET active=? WHERE id=? AND active IS NULL", (vid, pid)
+    # A refresh never replaces an existing active version automatically.
+    vid = insert_version(
+        pid,
+        normalized,
+        source={"kind": "api", "definition": definition},
+        activate="if-empty",
     )
     db().execute(
         "UPDATE jobs SET state='succeeded',result=?,updated=CURRENT_TIMESTAMP WHERE id=?",
@@ -244,9 +216,33 @@ def process_job(job):
     db().commit()
 
 
+_worker_started = False
+_worker_lock = threading.Lock()
+
+
+def start_worker(app):
+    """Start the job thread once per process (gunicorn runs a single process)."""
+    global _worker_started
+    with _worker_lock:
+        if _worker_started:
+            return
+        _worker_started = True
+
+    def loop():
+        with app.app_context():
+            while True:
+                try:
+                    run_worker()
+                except Exception:
+                    app.logger.exception("Job thread failed; restarting")
+                    db().rollback()
+                    time.sleep(5)
+
+    threading.Thread(target=loop, name="datalab-jobs", daemon=True).start()
+
+
 def run_worker(once=False):
-    # A single worker is supported. On restart stale interrupted jobs are diagnosed,
-    # never silently replayed against a changing remote source.
+    # Interrupted jobs are diagnosed, never silently replayed against a changing remote source.
     db().execute(
         "UPDATE jobs SET state='failed',result='Worker interrupted; explicitly restart import' WHERE state='running' AND updated < datetime('now','-5 minutes')"
     )

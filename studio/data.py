@@ -9,7 +9,6 @@ import uuid
 import zipfile
 import openpyxl
 from datetime import datetime
-import pandas as pd
 
 MAX_ROWS = 30000
 RESERVED = "__id"
@@ -47,6 +46,41 @@ def normalize(rows, identity=None):
     return out
 
 
+def read_xlsx(blob, sheet=0):
+    try:
+        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+            if sum(e.file_size for e in archive.infolist()) > 128 * 1024 * 1024:
+                raise ValueError("Expanded workbook exceeds 128 MiB")
+        workbook = openpyxl.load_workbook(io.BytesIO(blob), read_only=True, data_only=True)
+    except zipfile.BadZipFile as e:
+        raise ValueError("Malformed XLSX workbook") from e
+    try:
+        selected = workbook.worksheets[sheet] if isinstance(sheet, int) else workbook[sheet]
+        values = selected.iter_rows(values_only=True)
+        headers = next(values, ())
+        if (
+            not headers
+            or any(h is None or h == "" for h in headers)
+            or len({str(h) for h in headers}) != len(headers)
+        ):
+            raise ValueError("Workbook headers must be nonempty and unique")
+        headers = [str(h) for h in headers]
+        rows = []
+        for cells in values:
+            if all(c is None for c in cells):
+                continue  # trailing formatted-but-empty rows
+            # Cell values are kept as typed by Excel; text such as 0012 stays text.
+            rows.append(
+                {
+                    h: "" if v is None else v.isoformat() if hasattr(v, "isoformat") else v
+                    for h, v in zip(headers, cells)
+                }
+            )
+        return rows
+    finally:
+        workbook.close()
+
+
 def parse_upload(blob, filename, options):
     ext = filename.lower().rsplit(".", 1)[-1]
     if ext == "json":
@@ -73,46 +107,7 @@ def parse_upload(blob, filename, options):
         except csv.Error as e:
             raise ValueError(f"Malformed CSV: {e}") from e
     elif ext == "xlsx":
-        try:
-            with zipfile.ZipFile(io.BytesIO(blob)) as archive:
-                if (
-                    sum(entry.file_size for entry in archive.infolist())
-                    > 128 * 1024 * 1024
-                ):
-                    raise ValueError("Expanded workbook exceeds 128 MiB")
-            workbook = openpyxl.load_workbook(
-                io.BytesIO(blob), read_only=True, data_only=True
-            )
-            try:
-                sheet = options.get("sheet", 0)
-                selected = (
-                    workbook.worksheets[sheet]
-                    if isinstance(sheet, int)
-                    else workbook[sheet]
-                )
-                headers = next(selected.iter_rows(values_only=True), ())
-                if (
-                    not headers
-                    or any(h is None or h == "" for h in headers)
-                    or len({str(h) for h in headers}) != len(headers)
-                ):
-                    raise ValueError("Workbook headers must be nonempty and unique")
-            finally:
-                workbook.close()
-        except zipfile.BadZipFile as e:
-            raise ValueError("Malformed XLSX workbook") from e
-        # dtype=object avoids converting text identifiers such as 0012.
-        frame = pd.read_excel(
-            io.BytesIO(blob),
-            sheet_name=options.get("sheet", 0),
-            dtype=object,
-            keep_default_na=False,
-        )
-        rows = frame.to_dict("records")
-        rows = [
-            {k: v.isoformat() if hasattr(v, "isoformat") else v for k, v in r.items()}
-            for r in rows
-        ]
+        rows = read_xlsx(blob, options.get("sheet", 0))
     else:
         raise ValueError("Supported formats: CSV, TSV, JSON, XLSX")
     return normalize(rows, options.get("identity") or None)
