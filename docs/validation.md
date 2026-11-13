@@ -36,3 +36,9 @@ A bounded, unauthenticated request to OpenAlex returned HTTP 200. A separate tem
 No 30k-record p95 or 100k stress benchmark is certified. Interactive imports explicitly cap at 30,000 rows rather than silently sampling. Full keyboard/screen-reader certification, rich timeseries, generic joins, arbitrary graph/embedding generation, advanced decision models and full native Keshif translation are not claimed. Common studio/table/native facet labels are bilingual; some advanced native dialogs and operator technical names remain English. The exact lost implementation and database format were unavailable; the supplied v1 migration is for this documented reconstructed schema.
 
 Upstream license metadata remains inconsistent; see third-party notices. The inherited duplicate `recordGeo` switch case is a documented, harmless esbuild warning, not a failed build.
+
+## Container deployment
+
+The multi-stage Docker image builds the locked Python environment and recompiles the frontend with its TypeScript and vendor integrity checks. Docker Compose v2 configuration validation passed. Web and worker containers both became healthy with a read-only root filesystem, UID 10001 and a shared named data volume. All 32 frontend artifact checksums matched inside the runtime image.
+
+A disposable Compose project passed account creation through the container CLI, login, CSV import with a leading-zero identity, and a real OpenAlex job processed by the separate worker. Containers and their network were removed and recreated while retaining the volume: projects, rows, completed job history and the authenticated session survived. Actual Chromium rendered the native Keshif dashboard served by Docker. The disposable test containers and volume were then removed. Cloud-specific CA certificates were mounted for build/runtime testing; they are not included in the image or committed configuration.

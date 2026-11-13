@@ -18,6 +18,42 @@ The account CLI prompts for a password. There are no default development credent
 
 The worker accepts **GET-only HTTPS** APIs. `api.openalex.org` is enabled by default. Add trusted public API hosts to the comma-separated server variable `DATALAB_API_HOSTS`, and to the hosting platform's outbound policy. This is an administrator allowlist, not an end-user bypass. Every redirect is checked and cross-host credentials are removed. Bearer credentials use a server-side `DATALAB_*` environment-variable reference; values never belong in project manifests. Do not put credentials in query strings. Requests are bounded by page, record, response-size and time limits; see [architecture](docs/architecture.md).
 
+## Docker / Compose
+
+Docker Engine with Compose v2 is sufficient; Python, Node and npm are built into the image build.
+
+```sh
+docker compose up --build -d --wait
+docker compose exec web python -m flask --app app add-user your-name
+```
+
+Open the app on port **5000** of your machine. The account command prompts securely for a password; there are no default accounts. Compose starts the Gunicorn web service and one API worker from the same multi-stage image. Both run as an unprivileged user and share the `studio-data` named volume for SQLite, raw imports, checkpoints and the persistent session key. The worker starts after the web healthcheck succeeds. Frontend assets are rebuilt from the locked toolchain, not copied from a previous local build.
+
+```sh
+docker compose logs -f web worker
+docker compose stop
+docker compose up -d --wait
+# Stop/remove containers while preserving the database:
+docker compose down
+```
+
+Back up the named volume before upgrades. `docker compose down --volumes` **deletes all stored projects and accounts**. Do not scale the worker beyond one process for this SQLite deployment.
+
+The default port is bound to loopback. Set `DATALAB_PORT=8080` to change the host port, or `DATALAB_BIND_ADDRESS=0.0.0.0` when deliberately exposing it behind a TLS reverse proxy. Set `DATALAB_API_HOSTS` to a comma-separated list of trusted API hosts; network policy must also allow those hosts. Compose interpolation reads these non-secret settings from your shell or an untracked `.env` file.
+
+For optional API bearer credentials, use a private Compose override or your deployment secret injection to supply the relevant `DATALAB_*` environment variable to **the worker only**. The app uses its name as a secret reference. Never place credential values in the image, repository or tracked Compose files. The generated session key is shared through the volume, so no manual `SECRET_KEY` is required.
+
+For HTTPS-inspecting build proxies, the Dockerfile accepts optional BuildKit CA secrets without baking them into the image:
+
+```sh
+docker build --secret id=proxy_ca,src=/path/to/proxy-ca.pem \
+  --secret id=python_ca,src=/path/to/combined-ca-bundle.pem \
+  -t datalab-explorer:local .
+docker compose up -d --no-build --wait
+```
+
+When the runtime worker also needs a proxy CA, mount the combined CA bundle read-only with a deployment override and set `REQUESTS_CA_BUNDLE` to its container path, alongside the appropriate proxy environment. Standard installations need no custom CA settings; TLS verification stays enabled.
+
 ## Workflow
 
 1. Create a project and upload CSV/TSV, XLSX or JSON. CSV values remain strings until explicitly converted, so `0012` survives. Choose a natural identity to compare refreshes; otherwise IDs are immutable-version-local.

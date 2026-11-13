@@ -1,0 +1,43 @@
+name: datalab-explorer
+
+x-app: &app
+  image: datalab-explorer:local
+  build:
+    context: .
+  environment:
+    DATALAB_INSTANCE: /data
+    DATALAB_API_HOSTS: ${DATALAB_API_HOSTS:-api.openalex.org}
+  volumes:
+    - studio-data:/data
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  web:
+    <<: *app
+    ports:
+      - "${DATALAB_BIND_ADDRESS:-127.0.0.1}:${DATALAB_PORT:-5000}:5000"
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "flask", "--app", "app", "worker"]
+    depends_on:
+      web:
+        condition: service_healthy
+    # The worker has no HTTP listener; check access to the initialized shared database.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,sqlite3; c=sqlite3.connect('file:'+os.environ['DATALAB_INSTANCE']+'/studio.db?mode=rw',uri=True); assert c.execute('PRAGMA user_version').fetchone()[0]==2; c.close()"
+
+volumes:
+  studio-data:

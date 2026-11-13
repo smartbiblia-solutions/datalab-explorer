@@ -1,0 +1,17 @@
+.git
+.venv
+node_modules
+instance
+**/__pycache__
+**/*.pyc
+.pytest_cache
+test-results
+playwright-report
+.env
+.env.*
+*.pem
+*.key
+docs
+attachments
+static/dist
+static/webfonts

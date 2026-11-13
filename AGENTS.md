@@ -4,6 +4,7 @@ Use the existing checkout. Cloud tasks are isolated; create a Git worktree only 
 
 - Setup: `bash scripts/setup.sh` (Python 3.12, Node 22+).
 - Web: `bash scripts/dev.sh`; worker: `bash scripts/worker.sh`.
+- Container deployment: `docker compose up --build -d --wait`. Both services share the persistent `studio-data` volume; keep a single worker. Create accounts with `docker compose exec web python -m flask --app app add-user USERNAME`.
 - Tests: `.venv/bin/python -m pytest -q`; `npm run typecheck`; `npm run build`; `npm run test:browser`.
 - Browser tests run a dedicated temporary database on port 5101 and use system Chromium; never seed the real development database with test credentials.
 - Keep original uploads and credentials private in ignored `instance/`. Never commit local databases or keys.
