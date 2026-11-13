@@ -12,7 +12,5 @@
     "esbuild": "0.25.12",
     "typescript": "5.9.3"
   },
-  "dependencies": {
-    "@fortawesome/fontawesome-free": "5.15.4"
-  }
+  "license": "AGPL-3.0-only"
 }

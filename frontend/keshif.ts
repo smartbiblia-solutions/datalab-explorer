@@ -1,7 +1,8 @@
-// The renderer is retained as an independent, checksum-inventoried distribution.
-// @ts-ignore Runtime module is built and checksum-verified separately.
-const Runtime = await import("/static/dist/keshif.js");
+// Keshif comes from the pinned keshif-plus-custom build in static/keshif (see VERSION).
+// @ts-ignore Untyped runtime module served as a static file.
+const Runtime = await import("/static/keshif/keshif.min.js");
 const { Browser, Base, Filter_Base, LoadLanguage, i18n_EN } = Runtime;
+Base.loadWebFonts = false; // system fonts only: no external request
 import { lang, keshifFrench } from "./i18n";
 export type Row = Record<string, any> & { __id: string };
 export type Field = {
@@ -157,6 +158,7 @@ export class KeshifAdapter {
       scatterYBy: pick(config.y),
       geoBy: config.latitude && config.longitude ? "_StudioGeo" : undefined,
       mapConfig: {
+        emptyView: [[0, 0], 1],
         tileConfig: { disabled: true },
         leafConfig: { maxZoom: 18, minZoom: 1 },
       },
@@ -176,7 +178,8 @@ export class KeshifAdapter {
         domID: "#" + el.id,
         recordName: "Records",
         enableAuthoring: false,
-        recordViewMinHeight: 360,
+        confirmLargeRecordView: false,
+        minRecordViewHeight: 360,
         source: {
           name: this.name,
           id: "__id",
@@ -253,18 +256,7 @@ export class KeshifAdapter {
   destroy() {
     this.disposed = true;
     this.observer?.disconnect();
-    if (this.browser) {
-      delete Base.browsers[this.browser.getDashboardID()];
-      this.browser.finalized = false;
-      Base.tables.delete(this.name);
-      const root = this.browser.DOM?.root?.node();
-      root?.querySelectorAll("*").forEach((el: any) => {
-        el._tippy?.destroy();
-        if (el.tippy && el.tippy !== el._tippy) el.tippy.destroy?.();
-      });
-      this.browser.DOM?.root?.selectAll("*").interrupt();
-      this.browser.DOM?.root?.selectAll("*").remove();
-      this.browser = null;
-    }
+    this.browser?.destroy();
+    this.browser = null;
   }
 }

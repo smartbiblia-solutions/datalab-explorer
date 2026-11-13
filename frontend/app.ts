@@ -857,7 +857,6 @@ $("confirm-release").onclick = run(async () => {
   const r = await api(base() + "/releases", {
     ...review.request,
     digest: review.digest,
-    confirmed: true,
   });
   await openProject(pid, version.id);
   notice(t("Saved") + " · " + r.url);

@@ -124,7 +124,13 @@ class kshfBase {
                     return;
                 // Load common fonts
                 window["WebFontConfig"] = this.WebFontConfig;
-                // Studio uses system fonts: no external font dependency.
+                // Set kshf.loadWebFonts = false to skip the external request entirely.
+                if (this.loadWebFonts !== false) try {
+                    yield import('https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js');
+                } catch (_) {
+                    // Fonts are optional; layout and resize handlers must still work offline.
+                    console.warn("Keshif: using fallback fonts.");
+                }
                 //window.WebFont.load(this.WebFontConfig); // or, after loading the script
                 window.addEventListener("resize", () => {
                     for (var id in this.browsers) {
@@ -6340,6 +6346,7 @@ class ConfigPanel {
 class Filter_Spatial extends Filter {
     constructor(_browser, attrib) {
         super(_browser);
+        this.attrib = attrib;
         this.bounds = null;
     }
     get title() {
@@ -6368,7 +6375,7 @@ class Filter_Spatial extends Filter {
             .select(".spatialQueryBox_Filter")
             .classed("active", true);
         this.browser.records.forEach((record) => {
-            var rBounds = this.attrib.getRecordValue(record)._bounds;
+            var rBounds = this.attrib.getRecordValue(record)?._bounds;
             record.setFilterCache(this.filterID, rBounds ? Util.intersects(rBounds, this.bounds) : false);
         }, this);
     }
@@ -6401,7 +6408,7 @@ class Attrib_RecordGeo extends Attrib {
         // ********************************************************************
         // Point cluster management
         // ********************************************************************
-        this.maxNodeRecordSize = 1000;
+        this.geoType = "Point";
         // ********************************************************************
         // Cluster radius management
         // ********************************************************************
@@ -6429,6 +6436,7 @@ class Attrib_RecordGeo extends Attrib {
             if (this.recordGeoMap) {
                 yield this.recordGeoMap.loadGeo();
             }
+            this.noValueAggr.clearRecords();
             this.browser.records.forEach((record) => {
                 var feature = this.template.func.call(record.data, record);
                 if (typeof feature === "string" && this.recordGeoMap) {
@@ -6495,7 +6503,8 @@ class Attrib_RecordGeo extends Attrib {
                 return;
             }
             if (typeof Supercluster === "undefined") {
-                yield import('./vendor_mapping.js'); // UMD initializes window.Supercluster; exported namespace is empty.
+                // UMD side effect defines globalThis.Supercluster; the ES export is an empty namespace.
+                yield import('./vendor_mapping.js');
             }
             this.PointCluster = new Supercluster({
                 radius: this.pointClusterRadius,
@@ -6505,13 +6514,15 @@ class Attrib_RecordGeo extends Attrib {
             });
             var points = [];
             this.records.forEach((record) => {
+                var geometry = this.getRecordValue(record)?.geoFeat;
+                if (!geometry) return;
                 points.push({
                     type: "Feature",
                     properties: record,
-                    geometry: this.getRecordValue(record)?.geoFeat,
+                    geometry,
                 });
             });
-            this.PointCluster.load(points.filter(p => p.geometry && p.geometry.type === "Point" && p.geometry.coordinates.every(Number.isFinite)));
+            this.PointCluster.load(points.filter(p => p.geometry.type === "Point" && p.geometry.coordinates.every(Number.isFinite)));
         });
     }
     updateClusters(_bounds, zoom) {
@@ -6530,7 +6541,8 @@ class Attrib_RecordGeo extends Attrib {
                 //
             }
             else {
-                var clusterMembers = this.PointCluster.getLeaves(cluster.id, Infinity);
+                // Every member contributes to filtering and measures, not just the first 1000.
+                var clusterMembers = this.PointCluster.getLeaves(cluster.id, cluster.properties.point_count);
                 var clusterAggr = new Aggregate_PointCluster(this, cluster);
                 clusterMembers.forEach((member) => {
                     let record = member.properties;
@@ -6560,7 +6572,7 @@ class Attrib_RecordGeo extends Attrib {
         // delete all clusters
         this._aggrs.forEach((clusterAggr) => {
             clusterAggr.clearRecords(); // removes cluster aggregate from record's aggregate index
-            clusterAggr.DOM.aggrGlyph.remove(); // removes the DOM item
+            clusterAggr.DOM.aggrGlyph?.remove(); // may not have been rendered yet
             this.browser.allAggregates.splice(this.browser.allAggregates.indexOf(clusterAggr), 1);
         });
         this.records.forEach((record) => {
@@ -11224,6 +11236,9 @@ class RecordView {
             return true;
         };
         let _do = (d, cT, arcGen) => {
+            if (d.select(".glyph_" + cT).empty()) {
+                d.append("path").attr("class", "glyph_" + cT).attr("d", Util.getCirclePath());
+            }
             d.select(".glyph_" + cT)
                 .transition()
                 .ease(d3$b.easePoly.exponent(3))
@@ -11263,7 +11278,7 @@ class RecordView {
     extendRecordDOM_Point(newRecords) {
         newRecords.classed("pointGeo", true);
         ["Main"]
-            .concat(Base.Compare_List)
+            .concat(this.rd.config.compactPointDOM ? [] : Base.Compare_List)
             .forEach((cT) => newRecords.append("path").attr("class", "glyph_" + cT));
         newRecords.append("text").attr("class", "sizeValueText");
         // initializes to tiny circles
@@ -13223,11 +13238,21 @@ class RecordView_Map extends RecordView {
                 return;
             }
         }
-        this.zoomToBounds(Util.addMarginToBounds(this.geoAttrib.getRecordBounds(true)));
+        var bounds = this.geoAttrib.getRecordBounds(true);
+        if (!bounds.isValid()) {
+            if (!this.leafletRecordMap._loaded) this.setEmptyView();
+            return;
+        }
+        this.zoomToBounds(Util.addMarginToBounds(bounds));
     }
     /** -- */
+    /** mapConfig.emptyView = [[lat, lng], zoom] is used when there is nothing to fit. */
+    setEmptyView() {
+        var _v = (this.mapConfig && this.mapConfig.emptyView) || [[43.3, 5.37], 4];
+        this.leafletRecordMap.setView(_v[0], _v[1]);
+    }
     zoomToBounds(bounds) {
-        if (!bounds || !bounds.isValid()) { this.leafletRecordMap.setView([0, 0], 1); return; }
+        if (!bounds || !bounds.isValid()) { this.setEmptyView(); return; }
         this.rd.DOM.recordDisplayWrapper.classed("dragging", true);
         this.leafletRecordMap.fitBounds(bounds);
     }
@@ -13235,7 +13260,8 @@ class RecordView_Map extends RecordView {
     setMaxBounds() {
         if (this.rd.config.map_NoFitBounds)
             return;
-        this.leafletRecordMap.setMaxBounds(Util.addMarginToBounds(this.geoAttrib.getRecordBounds(false)));
+        var bounds = this.geoAttrib.getRecordBounds(false);
+        if (bounds.isValid()) this.leafletRecordMap.setMaxBounds(Util.addMarginToBounds(bounds));
     }
     translate_glyph(v) {
         var point = this.leafletRecordMap.latLngToLayerPoint(new L.latLng(v[1], v[0]));
@@ -13791,6 +13817,7 @@ class RecordView_Scatter extends RecordView {
     refreshViewSize(_delayMS = 0) {
         if (!this.scatterXAttrib || !this.scatterYAttrib)
             return;
+        this.refreshScales();
         this.refreshZoomScaleExtent();
         this.refreshRecordVis();
         this.rd.refreshColorLegendTicks();
@@ -13882,6 +13909,7 @@ class RecordView_Scatter extends RecordView {
         });
         var maxNumOfRecords = (this.realWidth * this.realHeight) / 7000;
         var numOfLabels = 0;
+        const visibleLabels = [];
         relevantRecords.forEach((record, i) => {
             if (numOfLabels > maxNumOfRecords)
                 return;
@@ -13898,8 +13926,7 @@ class RecordView_Scatter extends RecordView {
                 top: record._view.y,
                 bottom: record._view.y + _h,
             };
-            for (var j = 0; j < i; j++) {
-                var record_2 = relevantRecords[j];
+            for (const record_2 of visibleLabels) {
                 if (!record_2._view.hideTextLabel &&
                     Util.intersectsDOMRect(record._view.viewBounds, record_2._view.viewBounds)) {
                     record._view.hideTextLabel = true;
@@ -13907,6 +13934,7 @@ class RecordView_Scatter extends RecordView {
                 }
             }
             numOfLabels++;
+            visibleLabels.push(record);
         });
         this.DOM.kshfRecords.classed("hideTextLabel", (record) => record._view.hideTextLabel);
     }
@@ -14074,6 +14102,7 @@ class RecordView_Scatter extends RecordView {
     extendRecordDOM(newRecords) {
         newRecords.classed("noTransition", true);
         this.extendRecordDOM_Point(newRecords);
+        if (this.rd.config.scatterLabels === false) return;
         newRecords
             .append("foreignObject")
             .attr("width", "120")
@@ -14096,6 +14125,7 @@ class RecordView_Scatter extends RecordView {
             return;
         // needed to make labels visible so that bounds can be computed correctly
         this.DOM.kshfRecords.classed("hideTextLabel", false);
+        const measuredLabels = [];
         this.DOM.kshfRecords.selectAll(".recordText").each((record, i, nodes) => {
             if (!record.DOM.record) {
                 delete record.textBounds;
@@ -14103,8 +14133,7 @@ class RecordView_Scatter extends RecordView {
             }
             var DOM = nodes[i];
             var recordTextBounds = DOM.getBoundingClientRect();
-            DOM.parentNode.setAttribute("width", recordTextBounds.width * 1.07);
-            DOM.parentNode.setAttribute("height", recordTextBounds.height);
+            measuredLabels.push({DOM, recordTextBounds});
             var _ = recordTextBounds; // record.DOM.record.getBoundingClientRect();
             record.textBounds = {
                 width: _.width,
@@ -14114,6 +14143,11 @@ class RecordView_Scatter extends RecordView {
                 top: _.top,
                 bottom: _.bottom,
             };
+        });
+        // Read all bounds before writing: interleaving forced a layout per label.
+        measuredLabels.forEach(({DOM, recordTextBounds}) => {
+            DOM.parentNode.setAttribute("width", recordTextBounds.width * 1.07);
+            DOM.parentNode.setAttribute("height", recordTextBounds.height);
         });
     }
     refreshQueryBox_Filter(bounds = null) {
@@ -15007,7 +15041,8 @@ class RecordView_List extends RecordView {
         this.DOM.recordRanks = this.DOM.recordGroup.selectAll(".recordRank > span");
         // RECORD CLICK CALLBACK - Used by multiple DOM nodes
         var onRecordClick = (_event, record) => {
-            if (_event.target.closest("a")) return;
+            // Links in a record label keep their native navigation behavior.
+            if (_event.target.closest('a[href]')) return;
             this.browser.recordDetailsPopup.updateRecordDetailPanel(record);
             if (this.sortAttrib instanceof Attrib_Numeric &&
                 this.sortAttrib.timeKey) {
@@ -15554,6 +15589,11 @@ class RecordDisplay {
                 }
             }
             this.View = this.Views[_type];
+            // Cluster measures are map-only; do not carry them into a scatterplot.
+            if (_type !== "map") {
+                if (this.codeBy.size === "_measure_") this.codeBy.size = null;
+                if (this.codeBy.color === "_measure_") this.codeBy.color = null;
+            }
             if (!this.codeBy.text) {
                 var potentials = this.browser.attribs.filter((attrib) => attrib instanceof Attrib_Categorical);
                 if (potentials.length === 0) {
@@ -15889,8 +15929,10 @@ class RecordDisplay {
         this.curHeight = v;
         if (this.viewRecAs === "none")
             return;
-        if (this.curHeight !== oldHeight)
-            this.View.refreshViewSize(0);
+        if (this.curHeight !== oldHeight) {
+            if (this._deferViewResize) this._viewResizePending = true;
+            else this.View.refreshViewSize(0);
+        }
     }
     setWidth(v) {
         var oldWidth = this.curWidth;
@@ -15899,7 +15941,8 @@ class RecordDisplay {
             return;
         if (this.curWidth !== oldWidth) {
             this.refreshWidth();
-            this.View.refreshViewSize(0);
+            if (this._deferViewResize) this._viewResizePending = true;
+            else this.View.refreshViewSize(0);
         }
     }
     refreshWidth() {
@@ -16779,6 +16822,7 @@ class RecordDisplay {
     setAttrib(_type, _attrib, stopAnimation = false) {
         var _a, _b, _c, _d;
         return __awaiter(this, void 0, void 0, function* () {
+            if (_attrib === "_measure_" && ["size", "color"].includes(_type) && !this.isPointMap()) return;
             let attrib = null;
             // if integer, index by integer among potential options
             if (typeof _attrib === "number") {
@@ -22122,7 +22166,7 @@ class Browser {
                     return; // data not loaded yet
                 if (!this.recordDisplay)
                     return;
-                if (this.records.length > 5000 && !["list", "none"].includes(v)) {
+                if (this.options.confirmLargeRecordView !== false && this.records.length > 5000 && !["list", "none"].includes(v)) {
                     yield Modal.confirm("<div style='text-align:center;''>There are more than 2,000 records.<br>" +
                         `The ${v} chart will be crowded and potentially slow.<br><Br>` +
                         `Are you sure you want to change to ${v} chart?</div>`, "Change chart type");
@@ -22591,6 +22635,20 @@ class Browser {
     /** -- */
     getDashboardID() {
         return window.location.pathname + this.domID;
+    }
+    /** Unregisters this dashboard, removes its tooltips/transitions/DOM. Not reusable afterwards. */
+    destroy() {
+        var _a;
+        this.finalized = false;
+        delete Base.browsers[this.getDashboardID()];
+        if (this.primaryTableName) Base.tables.delete(this.primaryTableName);
+        var root = (_a = this.DOM) === null || _a === void 0 ? void 0 : _a.root;
+        if (!root) return;
+        root.node().querySelectorAll("*").forEach((el) => {
+            if (el._tippy) el._tippy.destroy();
+        });
+        root.selectAll("*").interrupt();
+        root.selectAll("*").remove();
     }
     /* -- */
     insertDOM_WarningBox() {
@@ -24253,7 +24311,9 @@ class Browser {
         this.refresh_filterClearAll();
         this.filteringMode.refresh();
         this.needToRefreshLayout = true;
-        this.options.onSelectionChange?.(this.records.filter(r => r.isIncluded).map(r => String(r.id)));
+        // Optional hook: receives the exact IDs of included records after each filter change.
+        if (this.options.onSelectionChange)
+            this.options.onSelectionChange(this.records.filter((r) => r.isIncluded).map((r) => String(r.id)));
     }
     refreshAnalytics() {
         var _a, _b, _c;
@@ -24722,14 +24782,28 @@ class Browser {
      **************************************************************/
     /** -- */
     updateLayout() {
-        if (this.finalized !== true || !this.DOM.root.node().isConnected || this.DOM.root.node().getBoundingClientRect().width === 0 || this._studioResizing) return;
-        this._studioResizing = true;
+        if (this.finalized !== true || this._layoutInProgress || !this.DOM.root.node().offsetWidth || !this.DOM.root.node().offsetHeight)
+            return;
+        this._layoutInProgress = true;
+        if (this.recordDisplay) this.recordDisplay._deferViewResize = true;
         try {
-        this.updateWidth_Total();
-        this.updateLayout_Height();
-        this.updateMiddlePanelWidth();
-        this.panels.bottom.refreshWidth();
-        } finally { this._studioResizing = false; }
+            this.updateWidth_Total();
+            this.updateLayout_Height();
+            this.updateMiddlePanelWidth();
+            this.panels.bottom.refreshWidth();
+        } finally {
+            try {
+                if (this.recordDisplay) {
+                    this.recordDisplay._deferViewResize = false;
+                    if (this.recordDisplay._viewResizePending) {
+                        this.recordDisplay._viewResizePending = false;
+                        this.recordDisplay.View?.refreshViewSize(0);
+                    }
+                }
+            } finally {
+                this._layoutInProgress = false;
+            }
+        }
     }
     checkAndAdjustBreadcrumbs() {
         if (this.filters_wrap_letItWrap)
@@ -24758,7 +24832,7 @@ class Browser {
     }
     /** -- */
     updateLayout_Height() {
-        if (!this.recordDisplay) {
+        if (!this.recordDisplay || !this.DOM.root.node().offsetWidth || !this.DOM.root.node().offsetHeight) {
             return; // dashboard not initialized yet
         }
         let divHeight = this.DOM.root.nodes()[0].offsetHeight;
@@ -24788,10 +24862,11 @@ class Browser {
         // ****************************************************************
         // MIDDLE PANEL
         var targetHeight_middle = topPanelsHeight;
+        const middleHeadersHeight = this.panels.middle.blocks.reduce((height, block) => height + block.height_Header + 8, 0);
         if (this.recordChartType.get() !== "none") {
             targetHeight_middle -= this.recordDisplay.collapsed
                 ? this.recordDisplay.height_Header + 4
-                : (this.options.recordViewMinHeight || 280);
+                : Math.max(200, Math.min(Number(this.options.minRecordViewHeight) || 200, topPanelsHeight - middleHeadersHeight));
             targetHeight_middle -= Base.width_PanelGap;
         }
         this.panels.middle.setHeightAndLayout(targetHeight_middle);
@@ -24995,4 +25070,3 @@ class Browser {
 }
 
 export { Aggregate, Aggregate_Category, Aggregate_Interval, Aggregate_Interval_Numeric, Aggregate_NoValue, Aggregate_PointCluster, Aggregate_SetPair, Attrib, Attrib_Categorical, Attrib_Content, Attrib_Interval, Attrib_Numeric, Attrib_RecordGeo, Attrib_Set, Attrib_Timeseries, Attrib_Timestamp, Base, Block, Block_Categorical, Block_Content, Block_Interval, Block_Numeric, Block_Set, Block_Timestamp, Browser, Config, ConfigS, DataTable, Filter, Filter_Base, Filter_Categorical, Filter_Interval, Filter_Numeric, Filter_Record, Filter_Text, Filter_Timestamp, LoadLanguage, MapData, Record, RecordDisplay, RecordView, RecordView_List, RecordView_Map, RecordView_Scatter, RecordView_Timeseries, Util, i18n, i18n_EN };
-//# sourceMappingURL=keshif.js.map
