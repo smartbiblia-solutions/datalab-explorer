@@ -1,69 +1,51 @@
 # DataLab Explorer
 
-A self-hosted data studio built with Flask, TypeScript and a retained Keshif+ renderer. Import structured records, prepare repeatable recipes, map variables, build dashboards, inspect exact selections, save research questions, collaborate and publish an explicitly reviewed projection.
+A self-hosted data studio built with Flask, TypeScript and Keshif+. Import structured records, prepare them with repeatable recipes, describe variables, build dashboards, inspect exact selections, save research questions, collaborate and publish a reviewed public projection.
 
-## Start
+## Run locally
 
-Python **3.12**, Node **22+**, npm and Chromium are required. No AI service, Docker or external database is required. Use the existing checkout; cloud tasks are already isolated and do not need a Git worktree.
+Requires Python 3.12+. Node 22+ is only needed to rebuild the frontend (`static/dist` is committed).
 
 ```sh
 bash scripts/setup.sh
 .venv/bin/python -m flask --app app add-user your-name
 bash scripts/dev.sh
-# In another terminal, for API imports:
-bash scripts/worker.sh
 ```
 
-The account CLI prompts for a password. There are no default development credentials. Web listens on port 5000; `GET /health` reports schema/build readiness. Start the processes again after restoring a cloud snapshot. Run from the repository root. `instance/` contains private SQLite metadata, original uploads, API page checkpoints and the persistent session key; back it up before upgrades. `DATALAB_INSTANCE` can put that directory elsewhere. Set `SECRET_KEY` through deployment secret settings if centrally managing sessions; never commit its value. Configure secure cookies and a TLS reverse proxy for production.
+Open http://127.0.0.1:5000. The account command prompts for a password; there are no default accounts. API imports run in a background thread of the web process, so there is nothing else to start.
 
-The worker accepts **GET-only HTTPS** APIs. `api.openalex.org` is enabled by default. Add trusted public API hosts to the comma-separated server variable `DATALAB_API_HOSTS`, and to the hosting platform's outbound policy. This is an administrator allowlist, not an end-user bypass. Every redirect is checked and cross-host credentials are removed. Bearer credentials use a server-side `DATALAB_*` environment-variable reference; values never belong in project manifests. Do not put credentials in query strings. Requests are bounded by page, record, response-size and time limits; see [architecture](docs/architecture.md).
+`instance/` holds the SQLite database, original uploads, API page checkpoints and the generated session key. Back it up before upgrades. `DATALAB_INSTANCE` moves it elsewhere; `SECRET_KEY` overrides the generated key. Use a TLS reverse proxy in production.
 
-## Docker / Compose
-
-Docker Engine with Compose v2 is sufficient; Python, Node and npm are built into the image build.
+## Docker
 
 ```sh
 docker compose up --build -d --wait
 docker compose exec web python -m flask --app app add-user your-name
 ```
 
-Open the app on port **5000** of your machine. The account command prompts securely for a password; there are no default accounts. Compose starts the Gunicorn web service and one API worker from the same multi-stage image. Both run as an unprivileged user and share the `studio-data` named volume for SQLite, raw imports, checkpoints and the persistent session key. The worker starts after the web healthcheck succeeds. Frontend assets are rebuilt from the locked toolchain, not copied from a previous local build.
+Data lives in the `studio-data` volume (`docker compose down` keeps it; `down --volumes` deletes everything). Run a single container: SQLite and the import thread assume one process.
 
-```sh
-docker compose logs -f web worker
-docker compose stop
-docker compose up -d --wait
-# Stop/remove containers while preserving the database:
-docker compose down
-```
+Settings (shell or untracked `.env`):
 
-Back up the named volume before upgrades. `docker compose down --volumes` **deletes all stored projects and accounts**. Do not scale the worker beyond one process for this SQLite deployment.
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATALAB_PORT` | `5000` | Host port |
+| `DATALAB_BIND_ADDRESS` | `127.0.0.1` | Use `0.0.0.0` only behind a TLS proxy |
+| `DATALAB_API_HOSTS` | `api.openalex.org` | Comma-separated allowlist of HTTPS API hosts |
+| `DATALAB_*` (any name) | — | Bearer tokens for API imports, referenced by name in a source; supply them through a private override, never in the repository |
 
-The default port is bound to loopback. Set `DATALAB_PORT=8080` to change the host port, or `DATALAB_BIND_ADDRESS=0.0.0.0` when deliberately exposing it behind a TLS reverse proxy. Set `DATALAB_API_HOSTS` to a comma-separated list of trusted API hosts; network policy must also allow those hosts. Compose interpolation reads these non-secret settings from your shell or an untracked `.env` file.
+## API imports
 
-For optional API bearer credentials, use a private Compose override or your deployment secret injection to supply the relevant `DATALAB_*` environment variable to **the worker only**. The app uses its name as a secret reference. Never place credential values in the image, repository or tracked Compose files. The generated session key is shared through the volume, so no manual `SECRET_KEY` is required.
-
-For HTTPS-inspecting build proxies, the Dockerfile accepts optional BuildKit CA secrets without baking them into the image:
-
-```sh
-docker build --secret id=proxy_ca,src=/path/to/proxy-ca.pem \
-  --secret id=python_ca,src=/path/to/combined-ca-bundle.pem \
-  -t datalab-explorer:local .
-docker compose up -d --no-build --wait
-```
-
-When the runtime worker also needs a proxy CA, mount the combined CA bundle read-only with a deployment override and set `REQUESTS_CA_BUNDLE` to its container path, alongside the appropriate proxy environment. Standard installations need no custom CA settings; TLS verification stays enabled.
+GET-only HTTPS requests to hosts in `DATALAB_API_HOSTS`. Redirects are re-checked against the allowlist and drop credentials across hosts; credentials in query strings are refused. Limits: 8 MiB per page, 100 pages, 30,000 records, 120 s per job. Hitting a limit fails the job instead of truncating. A refresh creates a new version but never replaces the active one automatically; compare versions in Sources, then activate.
 
 ## Workflow
 
-1. Create a project and upload CSV/TSV, XLSX or JSON. CSV values remain strings until explicitly converted, so `0012` survives. Choose a natural identity to compare refreshes; otherwise IDs are immutable-version-local.
-2. Preview a declarative preparation recipe against every row. Invalid conversions report affected IDs and block creation of a version. Applying creates a child version; undo activates its parent without deleting history.
-3. Edit labels, types, semantic roles, facet panels and multivalue delimiters. Choose a list, scatter or map dashboard, facets, encodings and safe record-card fields. Numeric scatter fields must first be converted to numbers. Dates require an explicit preparation format.
-4. Keshif owns chart filtering. The record table intersects exact chart IDs with its independent search and exact-value predicate. Save an exact cohort or a question with notes and dashboard/table state. Empty cohorts remain empty. JSON exports use that same intersection.
-5. The owner grants editor/viewer membership to existing accounts. Viewer requests cannot mutate projects, even by direct HTTP calls.
-6. Select a public field allowlist, review the complete projected payload, then explicitly confirm its digest. Each public release has independent data/metadata and replacement IDs. It never serves the private project manifest. Revoke a release to return 404 for its reader, data and export endpoints.
-
-Several dashboards and recipe templates can be saved per project. Portable project manifests include versioned data, mappings, recipes, dashboards and questions; exclude raw-file locations, source URLs and credential configuration. Imports validate IDs and references. Refreshes from the worker produce reviewable versions without automatically replacing an existing active dataset. Compare versions in Sources before activating.
+1. Create a project and upload CSV/TSV, XLSX or JSON. CSV values stay strings until converted, so `0012` survives. Choose an identity column to compare refreshes.
+2. Preview a declarative recipe against every row; errors block the new version. Applying creates a child version; undo reactivates the parent.
+3. Edit labels, types, roles, panels and delimiters; choose a list, scatter or map dashboard, facets, encodings and record-card fields.
+4. Keshif owns chart filtering; the table intersects the exact chart IDs with its own search. Save cohorts (empty ones stay empty) or questions with notes. Exports use the same IDs.
+5. The owner grants editor/viewer roles to existing accounts.
+6. Choose public fields, review the projected payload, then confirm. A release is frozen with new IDs and can be revoked.
 
 ## Verify
 
@@ -74,10 +56,18 @@ npm run build
 npm run test:browser
 ```
 
-Browser tests use system Chromium (`/usr/bin/chromium`) and their own temporary database/account; they do not require development credentials. On other machines set `CHROMIUM_PATH`. Playwright's managed Chromium is an alternative after installing it from its official distribution. Build outputs are committed so the app can start from a checkout; `npm ci && npm run build` reproduces them using locked tools. Every build writes a checksum manifest.
+Browser tests start their own temporary database on port 5101 and use `/usr/bin/chromium` (override with `CHROMIUM_PATH`).
 
-[Reconstruction scope and acceptance status](docs/implementation-status.md) distinguishes delivered behavior, tested contracts and proposed extensions. [Validation](docs/validation.md) records actual results and remaining limitations. Original uploaded documents are retained in `docs/`; their historical approval instructions are reference material, not current task authorization.
+## Keshif
 
-## Keshif provenance
+`static/keshif/` is a copy of the [keshif-plus-custom](https://github.com/smartbiblia-solutions/keshif-plus-custom) fork, pinned to the commit in `static/keshif/VERSION`. Fix the renderer in the fork, then update the copy:
 
-The canonical readable renderer and its vendor modules live in `vendor/keshif/`, independently of the removed examples. [Patch ledger](vendor/keshif/PATCHES.md), baseline checksums and build manifest document provenance. The inherited distribution cannot be proven identical to current upstream. Upstream's BSD-style LICENSE and AGPL package-metadata conflict is explicitly recorded in [third-party notices](vendor/THIRD-PARTY-NOTICES.md). This reconstruction does not assert that conflict is legally resolved. Font Awesome Pro faces are not distributed: the build uses the separately licensed Font Awesome Free package.
+```sh
+bash scripts/update-keshif.sh <commit-or-tag>
+```
+
+Keshif+ is © Keshif LLC; see `static/keshif/LICENSE` and `static/keshif/NOTICE.md` for its licence and bundled third-party libraries (including Font Awesome 6 Free).
+
+## Licence
+
+DataLab Explorer is licensed under the [GNU AGPL v3](LICENSE).

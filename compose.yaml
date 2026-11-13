@@ -1,40 +1,19 @@
-name: datalab-explorer
-
-x-app: &app
-  image: datalab-explorer:latest
-  build:
-    context: .
-  environment:
-    DATALAB_INSTANCE: /data
-    DATALAB_API_HOSTS: ${DATALAB_API_HOSTS:-api.openalex.org}
-  #volumes:
-  #  - ./data:/data
-  init: true
-  restart: unless-stopped
-  read_only: true
-  tmpfs:
-    - /tmp
-  security_opt:
-    - no-new-privileges:true
-  cap_drop:
-    - ALL
-
 services:
   web:
-    <<: *app
+    build: .
+    image: datalab-explorer:latest
+    restart: unless-stopped
     ports:
       - "${DATALAB_BIND_ADDRESS:-127.0.0.1}:${DATALAB_PORT:-5000}:5000"
-
-  worker:
-    <<: *app
-    command: ["python", "-m", "flask", "--app", "app", "worker"]
-    depends_on:
-      web:
-        condition: service_healthy
-    # The worker has no HTTP listener; check access to the initialized shared database.
+    environment:
+      DATALAB_API_HOSTS: ${DATALAB_API_HOSTS:-api.openalex.org}
+    volumes:
+      - studio-data:/data
     healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import os,sqlite3; c=sqlite3.connect('file:'+os.environ['DATALAB_INSTANCE']+'/studio.db?mode=rw',uri=True); assert c.execute('PRAGMA user_version').fetchone()[0]==2; c.close()"
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+
+volumes:
+  studio-data:

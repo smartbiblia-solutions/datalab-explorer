@@ -144,7 +144,7 @@ test("Keshif regression contracts: zero, false, missing geometry and complete la
   await page.goto("/");
   const result = await page.evaluate(async () => {
     // @ts-ignore Browser runtime module
-    const K = await import("/static/dist/keshif.js");
+    const K = await import("/static/keshif/keshif.min.js");
     const infer = (value: any) =>
       K.Browser.prototype.getAttribTypeFromFunc.call(
         { records: [{ data: { v: value } }] },
@@ -177,6 +177,10 @@ test("native list / scatter / map lifecycle and narrow-screen table", async ({
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.stack || e.message));
+  const external: string[] = [];
+  page.on("request", (r) => {
+    if (!r.url().startsWith("http://127.0.0.1:5101/")) external.push(r.url());
+  });
   await page.goto("/");
   await page.locator("[name=username]").first().fill("browser-test");
   await page.locator("[name=password]").fill("browser-test-password");
@@ -229,6 +233,7 @@ test("native list / scatter / map lifecycle and narrow-screen table", async ({
     fullPage: true,
   });
   expect(errors).toEqual([]);
+  expect(external).toEqual([]); // no web fonts, tiles or other third-party requests
 });
 
 test("a dataset without usable coordinates renders an empty map without losing records", async ({

@@ -1,11 +1,11 @@
-# Reconstruction coverage
+# Implementation status
 
-The uploaded recovery report is a partial document beginning at section 15.3. It contains no recoverable source, no exact prior database schema, and no original Portic adaptation report. The HTML specification is retained verbatim. The current user request authorizes rebuilding and committing; historical “do not implement before approval” sentences in reference documents do not override it.
+This is a reconstruction from the specifications in `docs/`, not a restoration of earlier source code.
 
 | Specification area | Status in this reconstruction | Acceptance evidence / boundary |
 |---|---|---|
 | 1 Product direction | Implemented foundation | Project-based structured-data studio; no mandatory AI service |
-| 2 Reuse/evidence | Implemented provenance ledger | Retained readable Keshif distribution, hashes, narrow patches; unknown upstream equivalence and license discrepancy documented |
+| 2 Reuse/evidence | Implemented | Keshif comes from the keshif-plus-custom fork (git history as patch ledger, shared with explore1.portic); licence discrepancy recorded in its NOTICE.md |
 | 3 Workspace/journeys | Implemented | Five studios; import → prepare → explore → publish browser journey |
 | 4A File sources | Implemented | CSV/TSV strict parsing, quoted fields, XLSX sheets, JSON record path, original upload retained; settings replace a separate pre-import wizard |
 | 4A API sources | Implemented bounded subset | GET, page/offset/cursor/next, worker/checkpoints/cancel/restart, bearer reference; deterministic worker tests and separate live OpenAlex smoke |
@@ -21,13 +21,11 @@ The uploaded recovery report is a partial document beginning at section 15.3. It
 | 4F Reproducibility | Implemented | Versioned manifests, import/export, recipes, dashboards/questions/cohorts pinned to versions, explicit active-version promotion |
 | 4F Collaboration/publication | Implemented | Owner/editor/viewer server checks, membership UI, owner protection; explicit reviewed immutable public projection and revocation |
 | 5 Differentiators | Implemented subset | Question bookmarks, version differences, coverage lens, saved layout experiments and recipes; recommendation assistant and dedicated rich quality dashboard deferred; inspectable missing-value and IQR outlier cohorts are available |
-| 6 Architecture | Implemented | Flask factory, TypeScript adapter, SQLite schema-2 migration, separate durable worker, bounded imports, CSRF/access controls |
-| 7 Keshif required reliability | Implemented/tested subset | Zero/false inference, missing point geometry, complete clusters, font independence, empty map bounds, resize guards, link-safe list clicks, exact-ID callback; see patch ledger |
+| 6 Architecture | Implemented | Flask factory, TypeScript adapter, SQLite, durable job table run by an in-process thread, bounded imports, CSRF/access controls |
+| 7 Keshif required reliability | Implemented/tested subset | Zero/false inference, missing point geometry, complete clusters, font independence, empty map bounds, resize guards, link-safe list clicks, exact-ID callback; see the fork's history |
 | 7 Further renderer proposals | Deferred | Lazy comparison glyphs, optional scatter labels, Canvas renderer and comprehensive scatter rescaling parity need dedicated measurement |
 | 8 Delivery phases | Reconciled | Core formerly described implementation reconstructed; advanced proposals remain explicitly scoped above |
-| 9 Acceptance matrix | Automated core coverage | Python and real Chromium tests; results in validation.md. Not every proposed stress/performance/accessibility target is certified |
-| 10 Proposed decisions | Superseded by current build request | Current user asked for implementation, commits and archive removal |
-| Recovery roles / publication / French | Implemented core | Role HTTP tests, true v1 fixture, projection/stale review/revocation tests, FR/EN common application and native facet interaction |
+| 9 Acceptance matrix | Automated core coverage | Python and real Chromium tests. Not every proposed stress/performance/accessibility target is certified |
+| Recovery roles / publication / French | Implemented core | Role HTTP tests, projection/stale review/revocation tests, FR/EN common application and native facet interaction |
 | Recovery semantic atlas / decision studio / evidence graph | Proposals retained, not claimed as lost delivered code | See extensions.md and the original recovery report |
 
-The absence of original source means this is a new reconstruction, not a byte-identical restoration. Every clean checkout can rebuild the committed implementation; no code depends on untracked files from the previous cloud session.

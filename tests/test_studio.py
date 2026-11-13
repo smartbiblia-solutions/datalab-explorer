@@ -1,10 +1,9 @@
 import io
 import json
-import sqlite3
 import pytest
 from conftest import Session
 from studio.data import parse_upload, normalize, profile, prepare
-from studio.db import db, migrate
+from studio.db import db
 
 
 def test_identity_and_types():
@@ -214,20 +213,6 @@ def test_csrf_and_malformed(owner, dataset, client):
         == 400
     )
     assert owner.post("/api/project-import", {"schema": 999}).status_code == 400
-
-
-def test_real_v1_migration(tmp_path):
-    connection = sqlite3.connect(tmp_path / "v1.db")
-    connection.executescript(
-        """CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,password TEXT); INSERT INTO users VALUES(1,'legacy','hash'); CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT,owner INTEGER,active TEXT); INSERT INTO projects VALUES('p','Legacy',1,NULL); PRAGMA user_version=1;"""
-    )
-    migrate(connection)
-    migrate(connection)
-    assert connection.execute("PRAGMA user_version").fetchone()[0] == 2
-    assert connection.execute("SELECT project,user,role FROM members").fetchall() == [
-        ("p", 1, "owner")
-    ]
-    assert connection.execute("SELECT name FROM projects").fetchone()[0] == "Legacy"
 
 
 def test_dictionary_requires_full_conversion(owner, dataset):
