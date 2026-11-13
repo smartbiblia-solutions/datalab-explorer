@@ -4,11 +4,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc --noEmit",
-    "test:browser": "playwright test"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@playwright/test": "1.56.1",
     "esbuild": "0.25.12",
     "typescript": "5.9.3"
   },

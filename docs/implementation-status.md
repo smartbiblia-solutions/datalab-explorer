@@ -25,7 +25,7 @@ This is a reconstruction from the specifications in `docs/`, not a restoration o
 | 7 Keshif required reliability | Implemented/tested subset | Zero/false inference, missing point geometry, complete clusters, font independence, empty map bounds, resize guards, link-safe list clicks, exact-ID callback; see the fork's history |
 | 7 Further renderer proposals | Deferred | Lazy comparison glyphs, optional scatter labels, Canvas renderer and comprehensive scatter rescaling parity need dedicated measurement |
 | 8 Delivery phases | Reconciled | Core formerly described implementation reconstructed; advanced proposals remain explicitly scoped above |
-| 9 Acceptance matrix | Automated core coverage | Python and real Chromium tests. Not every proposed stress/performance/accessibility target is certified |
+| 9 Acceptance matrix | Partial automated coverage | Python tests for server contracts; renderer behaviour is checked by hand. Not every proposed stress/performance/accessibility target is certified |
 | Recovery roles / publication / French | Implemented core | Role HTTP tests, projection/stale review/revocation tests, FR/EN common application and native facet interaction |
 | Recovery semantic atlas / decision studio / evidence graph | Proposals retained, not claimed as lost delivered code | See extensions.md and the original recovery report |
 

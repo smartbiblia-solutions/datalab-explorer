@@ -4,8 +4,6 @@ instance/
 __pycache__/
 .pytest_cache/
 *.pyc
-playwright-report/
-test-results/
 run.bat
 
 .env
