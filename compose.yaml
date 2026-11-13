@@ -1,7 +1,7 @@
 name: datalab-explorer
 
 x-app: &app
-  image: datalab-explorer:local
+  image: datalab-explorer:latest
   build:
     context: .
   environment:
