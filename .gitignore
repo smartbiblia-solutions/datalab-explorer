@@ -6,6 +6,7 @@ __pycache__/
 *.pyc
 playwright-report/
 test-results/
+run.bat
 
 .env
 .env.*

@@ -7,8 +7,8 @@ x-app: &app
   environment:
     DATALAB_INSTANCE: /data
     DATALAB_API_HOSTS: ${DATALAB_API_HOSTS:-api.openalex.org}
-  volumes:
-    - studio-data:/data
+  #volumes:
+  #  - ./data:/data
   init: true
   restart: unless-stopped
   read_only: true
@@ -38,6 +38,3 @@ services:
         - python
         - -c
         - "import os,sqlite3; c=sqlite3.connect('file:'+os.environ['DATALAB_INSTANCE']+'/studio.db?mode=rw',uri=True); assert c.execute('PRAGMA user_version').fetchone()[0]==2; c.close()"
-
-volumes:
-  studio-data:
