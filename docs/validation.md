@@ -8,7 +8,7 @@ Reconstructed and checked on 13 November 2026 in the managed Linux cloud environ
 - `bash scripts/setup.sh` completed: locked Python dependencies, `npm ci`, TypeScript check, frontend/vendor build, dependency consistency check.
 - Each frontend build reverses the Keshif patch ledger and checks the original SHA-256 baseline before generating matching minified JS/source maps and a complete runtime checksum manifest.
 - `npm run typecheck` and `git diff --check` passed.
-- The standalone installation/build and tests are rerun after removing the legacy examples; final outcomes are recorded below.
+- After removing all legacy application files, the standalone setup completed again, followed by **25 passing Python tests** and **4 passing Chromium tests**. Remaining empty upload directories were then removed; no `archives/` directory remains. The app/build have no runtime reference to that directory.
 
 ## Server tests
 

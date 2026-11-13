@@ -1,0 +1,22 @@
+
+> test:browser
+> playwright test
+
+
+Running 4 tests using 1 worker
+
+(node:12170) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12170) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/browser/studio.spec.ts:3:1 › import, prepare, native facets, exact empty cohort, bilingual publication and revoke (5.6s)
+  ✓  2 tests/browser/studio.spec.ts:112:1 › Keshif regression contracts: zero, false, missing geometry and complete large clusters (312ms)
+  ✓  3 tests/browser/studio.spec.ts:162:1 › native list / scatter / map lifecycle and narrow-screen table (8.6s)
+  ✓  4 tests/browser/studio.spec.ts:221:1 › a dataset without usable coordinates renders an empty map without losing records (1.6s)
+
+  4 passed (18.0s)
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice

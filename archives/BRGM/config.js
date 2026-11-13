@@ -1,2 +1,0 @@
-var summaries = [];
-var recordDisplay = {};
