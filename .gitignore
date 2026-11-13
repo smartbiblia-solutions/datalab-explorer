@@ -1,10 +1,7 @@
 .venv/
-node_modules/
 instance/
 __pycache__/
 .pytest_cache/
 *.pyc
-run.bat
-
 .env
 .env.*

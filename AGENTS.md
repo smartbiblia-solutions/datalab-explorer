@@ -1,14 +1,11 @@
 # DataLab Explorer development
 
-Use the existing checkout. Cloud tasks are isolated; create a Git worktree only when explicitly requested.
+Flask + Jinja + Bootstrap 5 + plain ES modules; no build step, no Node. Modelled on BRGM Publications Explorer: import a file, configure a Keshif dashboard, publish it.
 
-- Setup: `bash scripts/setup.sh` (Python 3.12+, Node 22+). Web and API-import thread: `bash scripts/dev.sh`.
-- Container deployment: `docker compose up --build -d --wait`, one container with the `studio-data` volume. Create accounts with `docker compose exec web python -m flask --app app add-user USERNAME`.
-- Tests: `.venv/bin/python -m pytest -q`; `npm run typecheck`; `npm run build`. There are no automated browser tests; the user checks the Explore tab by hand. Never seed the real development database with test credentials.
-- `static/dist` (built from `frontend/`) and `static/keshif` are committed. Rebuild `static/dist` after frontend changes.
-- Keshif: change it in the keshif-plus-custom fork (see its README rules: opt-in options, Portic tests), then `bash scripts/update-keshif.sh <ref>`. Never edit `static/keshif` by hand.
-- Keep original uploads and credentials private in ignored `instance/`. Never commit local databases or keys.
-- Dataset versions and public releases are immutable. All project writes must pass central role checks and session CSRF validation. Public endpoints serve only approved frozen projections.
-- User configurations are declarative JSON. No `eval`, `new Function`, or executable imported callbacks.
-- Preserve exact IDs across chart/table/export and preserve explicit empty selections. Test public projection, stale-review rejection and revocation when changing publication.
-- Keep `docs/implementation-status.md` honest about delivered versus deferred proposals.
+- Setup: `bash scripts/setup.sh`; run: `bash scripts/dev.sh`; tests: `.venv/bin/python -m pytest -q`. Dashboards are checked by hand in a browser.
+- Three objects only: dataset (rows as JSON in `instance/datasets/`), view (JSON configuration), publication (frozen copy in `instance/publications/`, only the columns the view uses). Keep it that simple.
+- Configurations are declarative JSON turned into Keshif options by `static/js/dashboard.js`. Never store or run user-supplied JavaScript.
+- Data and uploads stay in `instance/`, never in `static/`. Public routes serve only published copies.
+- Every POST carries the session CSRF token (form field `csrf_token` or header `X-CSRF-Token`).
+- All interface text goes through `datalab/translations/*.json` (`_()` in templates, `window.DATALAB_T` in scripts). French is the reference; keep `en.json` in step.
+- Keshif changes go to the keshif-plus-custom fork first, then `bash scripts/update-keshif.sh <commit>`. Never edit `static/keshif` by hand.

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ _('data.title') }} · {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<div class="text-center my-4">
+  <h1 class="h2">{{ _('data.title') }}</h1>
+  <p class="lead">{{ _('data.lead') }}</p>
+</div>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">{{ _('data.import') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.upload') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label for="file" class="form-label">{{ _('data.file') }}</label>
+          <input type="file" class="form-control" id="file" name="file" accept=".csv,.tsv,.txt,.xlsx,.json" required>
+          <div class="form-text mb-3">{{ _('data.formats') }}</div>
+          <div class="d-grid"><button class="btn btn-primary">{{ _('data.check') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">{{ _('data.list') }}</div>
+      {% if datasets %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>{{ _('data.name') }}</th><th class="text-end">{{ _('data.rows') }}</th><th>{{ _('data.updated') }}</th><th>{{ _('data.views') }}</th></tr></thead>
+          <tbody>
+          {% for d in datasets %}
+            <tr>
+              <td><a href="{{ url_for('admin.dataset', dataset_id=d.id) }}">{{ d.name }}</a><br><small class="text-muted">{{ d.source }}</small></td>
+              <td class="text-end">{{ '{:,}'.format(d.row_count).replace(',', ' ') }}</td>
+              <td><small>{{ d.updated[:10] }}</small></td>
+              <td>
+                {% for v in views.get(d.id, []) %}
+                  <a class="me-2" href="{{ url_for('admin.view_editor', view_id=v.id) }}">{{ v.name }}</a>{% if v.published_at %}<span class="badge text-bg-success me-2">{{ _('view.published') }}</span>{% endif %}
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body"><p class="text-muted mb-0">{{ _('data.empty') }}</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

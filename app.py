@@ -1,3 +1,3 @@
-from studio import create_app
+from datalab import create_app
 
 app = create_app()
