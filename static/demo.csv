@@ -1,0 +1,6 @@
+id,title,category,year,amount,latitude,longitude,tags,public,private_note
+0012,Coastal observations,Environment,2025,12.5,0,0,water|coast,true,Internal review
+0013,Library futures,Humanities,2024,0,48.85,2.35,library|AI,false,Not for publication
+0014,Open science survey,Research,2025,42,43.3,5.37,science|open,true,Pending validation
+0015,Climate archive,Environment,2023,18,,,climate|archive,true,Confidential contact
+0016,Urban data,Research,2024,26,48.85,2.35,cities|open,false,Restricted evidence
