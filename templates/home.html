@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center my-4">
+  <h1 class="h2">{{ config.SITE_TITLE }}</h1>
+  <p class="lead">{{ _('home.lead') }}</p>
+</div>
+<div class="row">
+  <div class="col-lg-8 offset-lg-2">
+    {% if views %}
+      <div class="list-group">
+        {% for v in views %}
+          <a href="{{ url_for('public.dashboard', slug=v.slug) }}" class="list-group-item list-group-item-action py-3">
+            <div class="d-flex w-100 justify-content-between gap-3">
+              <h2 class="h5 mb-1">{{ v.public_title }}</h2>
+              <small class="text-muted text-nowrap">{{ _('home.updated', date=v.published_at[:10]) }}</small>
+            </div>
+            {% if v.public_description %}<p class="mb-1">{{ v.public_description }}</p>{% endif %}
+            <small class="text-muted">{{ _('home.records', n='{:,}'.format(v.published_rows).replace(',', ' ')) }}</small>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted text-center">{{ _('home.empty') }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

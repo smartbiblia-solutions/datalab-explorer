@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ _('import.title') }} · {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<div class="text-center my-4">
+  <h1 class="h2">{{ _('import.title') }}</h1>
+  <p class="lead">{{ meta.filename }}</p>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">{{ _('import.reading') }}</div>
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      {% if meta.suffix in ['.csv', '.tsv', '.txt'] %}
+      <div class="col-sm-4 col-lg-3">
+        <label class="form-label" for="delimiter">{{ _('import.delimiter') }}</label>
+        <select class="form-select" id="delimiter" name="delimiter" onchange="this.form.submit()">
+          <option value="">{{ _('import.auto') }}{% if table %} ({{ _('sep.' ~ table.info.delimiter|replace('\t', 'tab')) }}){% endif %}</option>
+          {% for sep in separators %}<option value="{{ sep }}" {% if options.delimiter == sep %}selected{% endif %}>{{ _('sep.' ~ sep|replace('\t', 'tab')) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-4 col-lg-3">
+        <label class="form-label" for="encoding">{{ _('import.encoding') }}</label>
+        <select class="form-select" id="encoding" name="encoding" onchange="this.form.submit()">
+          <option value="">{{ _('import.auto') }}{% if table %} ({{ table.info.encoding }}){% endif %}</option>
+          <option value="utf-8-sig" {% if options.encoding == 'utf-8-sig' %}selected{% endif %}>UTF-8</option>
+          <option value="cp1252" {% if options.encoding == 'cp1252' %}selected{% endif %}>Windows-1252 (Excel)</option>
+          <option value="latin-1" {% if options.encoding == 'latin-1' %}selected{% endif %}>ISO-8859-1</option>
+        </select>
+      </div>
+      {% endif %}
+      {% if table and table.info.sheets and table.info.sheets|length > 1 %}
+      <div class="col-sm-4 col-lg-3">
+        <label class="form-label" for="sheet">{{ _('import.sheet') }}</label>
+        <select class="form-select" id="sheet" name="sheet" onchange="this.form.submit()">
+          {% for s in table.info.sheets %}<option {% if s == table.info.sheet %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <noscript><div class="col-auto"><button class="btn btn-secondary">{{ _('import.reread') }}</button></div></noscript>
+    </form>
+
+    {% if error %}
+      <div class="alert alert-danger mt-3 mb-0">{{ error }}</div>
+    {% else %}
+      <p class="mt-3 mb-0">
+        <span class="badge text-bg-primary">{{ table.info.format }}</span>
+        {{ _('import.summary', rows='{:,}'.format(table.rows|length).replace(',', ' '), columns=table.columns|length) }}
+      </p>
+      {% if table.info.renamed %}
+        <p class="text-warning-emphasis small mt-2 mb-0">{{ _('import.renamed') }}
+          {% for old, new in table.info.renamed %}<code>{{ old or '∅' }}</code> → <code>{{ new }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% if table %}
+<div class="card mb-4">
+  <div class="card-header">{{ _('import.preview') }}</div>
+  <div class="table-responsive dl-preview">
+    <table class="table table-sm table-striped mb-0">
+      <thead><tr>{% for c in table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in table.rows[:10] %}
+          <tr>{% for c in table.columns %}<td>{{ r[c] if r[c] is not sequence or r[c] is string else r[c]|join(' · ') }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">{{ _('import.columns') }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>{{ _('import.column') }}</th><th>{{ _('import.type') }}</th><th>{{ _('import.separator') }}</th><th class="text-end">{{ _('import.distinct') }}</th><th class="text-end">{{ _('import.missing') }}</th><th>{{ _('import.examples') }}</th></tr></thead>
+      <tbody>
+        {% for c in described %}
+          <tr><td>{{ c.name }}</td><td>{{ _('type.' ~ c.type) }}</td><td>{% if c.separator %}<code>{{ c.separator }}</code>{% endif %}</td><td class="text-end">{{ c.distinct }}</td><td class="text-end">{{ c.missing }}</td><td class="text-muted small">{{ c.samples|join(' | ') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" class="card mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for k, v in options.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  {% if table.info.sheet %}<input type="hidden" name="sheet" value="{{ table.info.sheet }}">{% endif %}
+  <div class="card-body row g-3 align-items-end">
+    {% if replace %}
+      <div class="col-md-8"><p class="mb-0">{{ _('import.replace_note', name=replace.name) }}</p></div>
+      <div class="col-md-4 d-grid"><button class="btn btn-primary">{{ _('import.replace') }}</button></div>
+    {% else %}
+      <div class="col-md-8">
+        <label class="form-label" for="name">{{ _('import.name') }}</label>
+        <input class="form-control" id="name" name="name" value="{{ meta.filename.rsplit('.', 1)[0] }}" required>
+      </div>
+      <div class="col-md-4 d-grid"><button class="btn btn-primary">{{ _('import.save') }}</button></div>
+    {% endif %}
+  </div>
+</form>
+{% endif %}
+{% endblock %}

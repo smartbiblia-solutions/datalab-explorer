@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ view.name }} · {{ config.SITE_TITLE }}{% endblock %}
+{% block main_class %}container-fluid my-3{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+  <div>
+    <a href="{{ url_for('admin.dataset', dataset_id=view.dataset_id) }}">&larr; {{ view.dataset_name }}</a>
+    <div class="d-flex align-items-center gap-2 mt-1">
+      <label class="visually-hidden" for="view-name">{{ _('view.name') }}</label>
+      <input id="view-name" class="form-control form-control-lg dl-view-name" value="{{ view.name }}">
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span id="save-state" class="small text-muted"></span>
+    <button id="toggle-settings" class="btn btn-outline-secondary">{{ _('view.toggle') }}</button>
+    <button id="save-view" class="btn btn-primary">{{ _('view.save') }}</button>
+  </div>
+</div>
+<div id="editor-message"></div>
+
+<div class="dl-editor">
+  <aside class="dl-settings">
+    <div class="card mb-3">
+      <div class="card-header">{{ _('view.columns') }}</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 dl-columns">
+          <thead><tr>
+            <th title="{{ _('view.show_help') }}">{{ _('view.show') }}</th><th>{{ _('import.column') }}</th><th>{{ _('view.label') }}</th>
+            <th>{{ _('import.type') }}</th><th title="{{ _('view.separator_help') }}">{{ _('import.separator') }}</th><th>{{ _('view.panel') }}</th><th title="{{ _('view.collapsed_help') }}">{{ _('view.collapsed') }}</th>
+          </tr></thead>
+          <tbody id="columns-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <form id="display-form" class="card mb-3" onsubmit="return false">
+      <div class="card-header">{{ _('view.records') }}</div>
+      <div class="card-body row g-2">
+        <div class="col-6"><label class="form-label small" for="display-layout">{{ _('view.layout') }}</label><select id="display-layout" class="form-select form-select-sm"></select></div>
+        <div class="col-6"><label class="form-label small" for="display-title">{{ _('view.title_column') }}</label><select id="display-title" class="form-select form-select-sm"></select></div>
+        <div class="col-6"><label class="form-label small" for="display-link">{{ _('view.link_column') }}</label><select id="display-link" class="form-select form-select-sm"></select></div>
+        <div class="col-6"><label class="form-label small" for="display-sort">{{ _('view.sort') }}</label>
+          <div class="input-group input-group-sm"><select id="display-sort" class="form-select"></select>
+            <select id="display-order" class="form-select" aria-label="{{ _('view.order') }}"><option value="desc">{{ _('view.desc') }}</option><option value="asc">{{ _('view.asc') }}</option></select></div></div>
+        <div class="col-12"><span class="form-label small d-block">{{ _('view.details') }}</span><div id="display-details" class="dl-details"></div></div>
+      </div>
+    </form>
+
+    <div class="card mb-3">
+      <div class="card-header">{{ _('view.publication') }}</div>
+      <div class="card-body">
+        {% if view.published_at %}
+          <p>{{ _('view.published_on', date=view.published_at[:16]) }}
+            <a href="{{ url_for('public.dashboard', slug=view.slug) }}" target="_blank" rel="noopener">/v/{{ view.slug }}</a></p>
+        {% else %}
+          <p class="text-muted">{{ _('view.not_published') }}</p>
+        {% endif %}
+        <p class="small text-muted">{{ _('view.publish_help') }}</p>
+        <form method="post" action="{{ url_for('admin.publish', view_id=view.id) }}" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12"><label class="form-label small" for="pub-title">{{ _('view.public_title') }}</label>
+            <input id="pub-title" class="form-control form-control-sm" name="title" value="{{ view.public_title or view.name }}" required></div>
+          <div class="col-12"><label class="form-label small" for="pub-description">{{ _('view.public_description') }}</label>
+            <textarea id="pub-description" class="form-control form-control-sm" name="description" rows="2">{{ view.public_description or '' }}</textarea></div>
+          <div class="col-12"><label class="form-label small" for="pub-slug">{{ _('view.slug') }}</label>
+            <div class="input-group input-group-sm"><span class="input-group-text">/v/</span>
+            <input id="pub-slug" class="form-control" name="slug" value="{{ view.slug or suggested_slug }}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required></div></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-success btn-sm" data-needs-saved>{{ _('view.update') if view.published_at else _('view.publish') }}</button>
+          </div>
+        </form>
+        {% if view.published_at %}
+        <form method="post" action="{{ url_for('admin.unpublish', view_id=view.id) }}" class="mt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-secondary btn-sm">{{ _('view.unpublish') }}</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.delete_view', view_id=view.id) }}" onsubmit="return confirm({{ _('view.delete_confirm')|tojson }})">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-link text-danger btn-sm px-0">{{ _('view.delete') }}</button>
+    </form>
+  </aside>
+  <section class="dl-preview-pane">
+    <div id="dashboard" class="dl-dashboard"></div>
+  </section>
+</div>
+<script type="application/json" id="view-data">{{ {"config": view_config, "described": described, "saveUrl": url_for('admin.save_view', view_id=view.id), "dataUrl": url_for('admin.dataset_data', dataset_id=view.dataset_id)} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script>window.DATALAB_T = {{ client_messages() | tojson }};</script>
+<script type="module" src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{% endblock %}

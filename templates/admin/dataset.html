@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ dataset.name }} · {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<p class="mb-1"><a href="{{ url_for('admin.datasets') }}">&larr; {{ _('data.title') }}</a></p>
+<div class="text-center mb-4">
+  <h1 class="h2">{{ dataset.name }}</h1>
+  <p class="lead">{{ _('dataset.lead', source=dataset.source, rows='{:,}'.format(dataset.row_count).replace(',', ' '), date=dataset.updated[:10]) }}</p>
+</div>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header">{{ _('dataset.views') }}</div>
+      <ul class="list-group list-group-flush">
+        {% for v in views %}
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <a href="{{ url_for('admin.view_editor', view_id=v.id) }}">{{ v.name }}</a>
+            {% if v.published_at %}<a class="badge text-bg-success text-decoration-none" href="{{ url_for('public.dashboard', slug=v.slug) }}">{{ _('view.published') }} · /v/{{ v.slug }}</a>
+            {% else %}<span class="badge text-bg-secondary">{{ _('view.draft') }}</span>{% endif %}
+          </li>
+        {% else %}
+          <li class="list-group-item text-muted">{{ _('dataset.no_view') }}</li>
+        {% endfor %}
+      </ul>
+      <div class="card-body border-top">
+        <form method="post" action="{{ url_for('admin.new_view', dataset_id=dataset.id) }}" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col"><input class="form-control" name="name" placeholder="{{ _('dataset.view_name') }}" aria-label="{{ _('dataset.view_name') }}" required></div>
+          <div class="col-auto"><button class="btn btn-primary">{{ _('dataset.new_view') }}</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">{{ _('import.columns') }}</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>{{ _('import.column') }}</th><th>{{ _('import.type') }}</th><th class="text-end">{{ _('import.distinct') }}</th><th class="text-end">{{ _('import.missing') }}</th><th>{{ _('import.examples') }}</th></tr></thead>
+          <tbody>
+            {% for c in columns %}
+              <tr><td>{{ c.name }}</td><td>{{ _('type.' ~ c.type) }}{% if c.separator %} <code>{{ c.separator }}</code>{% endif %}</td><td class="text-end">{{ c.distinct }}</td><td class="text-end">{{ c.missing }}</td><td class="text-muted small">{{ c.samples|join(' | ') }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header">{{ _('dataset.replace') }}</div>
+      <div class="card-body">
+        <p>{{ _('dataset.replace_help') }}</p>
+        <form method="post" action="{{ url_for('admin.upload') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="replace" value="{{ dataset.id }}">
+          <input type="file" class="form-control mb-3" name="file" accept=".csv,.tsv,.txt,.xlsx,.json" required aria-label="{{ _('data.file') }}">
+          <div class="d-grid"><button class="btn btn-outline-primary">{{ _('data.check') }}</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="card border-danger">
+      <div class="card-header text-danger">{{ _('dataset.delete') }}</div>
+      <div class="card-body">
+        <p>{{ _('dataset.delete_help') }}</p>
+        <form method="post" action="{{ url_for('admin.delete_dataset', dataset_id=dataset.id) }}" onsubmit="return confirm({{ _('dataset.delete_confirm', name=dataset.name)|tojson }})">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-danger">{{ _('dataset.delete') }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
