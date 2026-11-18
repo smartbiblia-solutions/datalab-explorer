@@ -8,6 +8,7 @@ services:
     environment:
       DATALAB_TITLE: ${DATALAB_TITLE:-DataLab Explorer}
       DATALAB_LANG: ${DATALAB_LANG:-fr}
+      DATALAB_AUTH: ${DATALAB_AUTH:-on}
     volumes:
       - datalab-data:/data
     healthcheck:

@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
 
 from .db import db
@@ -12,7 +12,7 @@ auth_bp = Blueprint("auth", __name__)
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not g.user:
+        if current_app.config["AUTH"] and not g.user:
             return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
 
@@ -21,6 +21,8 @@ def login_required(view):
 
 @auth_bp.route("/connexion", methods=["GET", "POST"])
 def login():
+    if not current_app.config["AUTH"]:
+        return redirect(url_for("admin.datasets"))
     if request.method == "POST":
         user = db().execute(
             "SELECT * FROM users WHERE username=?", (request.form.get("username", ""),)

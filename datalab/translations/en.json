@@ -1,4 +1,6 @@
 {
+ "auth.open": "Open access",
+ "auth.open_help": "Sign-in disabled (DATALAB_AUTH=off): anyone can change the data.",
  "common.close": "Close",
  "dashboard.back": "All dashboards",
  "dashboard.export": "Export selection (CSV)",

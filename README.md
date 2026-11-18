@@ -18,7 +18,7 @@ bash scripts/setup.sh
 bash scripts/dev.sh
 ```
 
-Open http://127.0.0.1:5000 and sign in. Data lives in `instance/` (SQLite database, dataset and publication JSON files, session key); back up that folder.
+Open http://127.0.0.1:5000 and sign in. To skip accounts while developing, run with `DATALAB_AUTH=off` (for example `DATALAB_AUTH=off bash scripts/dev.sh`). Data lives in `instance/` (SQLite database, dataset and publication JSON files, session key); back up that folder.
 
 ## Docker
 
@@ -27,12 +27,13 @@ docker compose up --build -d --wait
 docker compose exec web python -m flask --app app add-user your-name
 ```
 
-Data lives in the `datalab-data` volume. Settings, from your shell or an untracked `.env` file:
+Data, including accounts, lives in the `datalab-data` volume: it survives `docker compose up --build`, and only `docker compose down -v` deletes it. To work without accounts, put `DATALAB_AUTH=off` in an untracked `.env` file next to `compose.yaml`. Settings, from your shell or an untracked `.env` file:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATALAB_TITLE` | `DataLab Explorer` | Site name in the header and homepage |
 | `DATALAB_LANG` | `fr` | Default interface language (`fr` or `en`); visitors can switch in the footer |
+| `DATALAB_AUTH` | `on` | `off` opens the curator pages (import, edit, publish) to anyone who can reach the app, with no accounts. Use it for local development, or in production only behind your own access control |
 | `DATALAB_PORT` | `5000` | Host port |
 | `DATALAB_BIND_ADDRESS` | `127.0.0.1` | Use `0.0.0.0` only behind a TLS reverse proxy |
 

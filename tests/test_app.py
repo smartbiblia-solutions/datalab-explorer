@@ -81,3 +81,18 @@ def test_delete_one_dashboard_keeps_the_others(app, curator):
     assert r.headers["Location"].endswith(f"/admin/donnees/{dataset_id}")
     assert app.test_client().get("/v/d").status_code == 404
     assert curator.get(f"/admin/vues/{second}").status_code == 200
+
+
+def test_open_access_mode(tmp_path, monkeypatch):
+    from datalab import create_app
+
+    monkeypatch.setenv("DATALAB_INSTANCE", str(tmp_path))
+    monkeypatch.setenv("DATALAB_AUTH", "off")
+    client = create_app({"TESTING": True, "SECRET_KEY": "test"}).test_client()
+    page = client.get("/admin/").get_data(as_text=True)
+    assert "Accès libre" in page
+    assert client.get("/connexion").headers["Location"].endswith("/admin/")
+    client.token = csrf(client, "/admin/")
+    token = upload(client, "a.csv", b"name,group\nA,x\nB,y\n")
+    assert client.post(f"/admin/import/{token}", data={"name": "A", "csrf_token": client.token}).status_code == 302
+    assert client.post("/admin/import", data={}).status_code == 400  # CSRF still checked
