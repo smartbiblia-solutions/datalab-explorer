@@ -1,4 +1,6 @@
 {
+ "auth.open": "Accès libre",
+ "auth.open_help": "Authentification désactivée (DATALAB_AUTH=off) : tout le monde peut modifier les données.",
  "common.close": "Fermer",
  "dashboard.back": "Tous les tableaux de bord",
  "dashboard.export": "Exporter la sélection (CSV)",

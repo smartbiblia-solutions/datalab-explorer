@@ -27,11 +27,15 @@ def create_app(test_config=None):
         SESSION_COOKIE_SAMESITE="Lax",
         SITE_TITLE=os.environ.get("DATALAB_TITLE", "DataLab Explorer"),
         DEFAULT_LANG=os.environ.get("DATALAB_LANG", "fr"),
+        # DATALAB_AUTH=off opens the curator pages to anyone who can reach the app.
+        AUTH=os.environ.get("DATALAB_AUTH", "on").strip().lower() not in ("off", "0", "false", "no"),
     )
     if test_config:
         app.config.update(test_config)
     with app.app_context():
         store.db().executescript(store.SCHEMA)
+    if not app.config["AUTH"]:
+        app.logger.warning("DATALAB_AUTH=off: curator pages are open without sign-in.")
     app.teardown_appcontext(store.close_db)
 
     @app.before_request
@@ -52,6 +56,7 @@ def create_app(test_config=None):
         return session["csrf"]
 
     app.jinja_env.globals.update(
+        auth_enabled=lambda: app.config["AUTH"],
         _=translate, csrf_token=csrf_token, current_lang=current_lang,
         languages=languages, client_messages=client_messages,
     )
