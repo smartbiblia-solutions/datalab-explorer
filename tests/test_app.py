@@ -67,3 +67,17 @@ def test_language_switch(app):
     assert "Tableaux de bord publiés" in client.get("/").get_data(as_text=True)
     client.get("/lang/en")
     assert "Published dashboards" in client.get("/").get_data(as_text=True)
+
+
+def test_delete_one_dashboard_keeps_the_others(app, curator):
+    token = upload(curator, "d.csv", b"name,group\nA,x\nB,y\n")
+    first = curator.post(f"/admin/import/{token}", data={"name": "D", "csrf_token": curator.token}).headers["Location"].rsplit("/", 1)[-1]
+    curator.post(f"/admin/vues/{first}/publier", data={"slug": "d", "title": "D", "csrf_token": curator.token})
+    dataset_id = curator.get(f"/admin/vues/{first}").get_data(as_text=True).split("/admin/donnees/")[1].split('"')[0]
+    second = curator.post(f"/admin/donnees/{dataset_id}/vues", data={"name": "Autre", "csrf_token": curator.token}).headers["Location"].rsplit("/", 1)[-1]
+    page = curator.get(f"/admin/donnees/{dataset_id}").get_data(as_text=True)
+    assert f"/admin/vues/{first}/supprimer" in page and f"/admin/vues/{second}/supprimer" in page
+    r = curator.post(f"/admin/vues/{first}/supprimer", data={"csrf_token": curator.token})
+    assert r.headers["Location"].endswith(f"/admin/donnees/{dataset_id}")
+    assert app.test_client().get("/v/d").status_code == 404
+    assert curator.get(f"/admin/vues/{second}").status_code == 200

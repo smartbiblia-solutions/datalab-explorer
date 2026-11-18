@@ -14,6 +14,10 @@
     <span id="save-state" class="small text-muted"></span>
     <button id="toggle-settings" class="btn btn-outline-secondary">{{ _('view.toggle') }}</button>
     <button id="save-view" class="btn btn-primary">{{ _('view.save') }}</button>
+    {% if view.published_at %}
+      <a class="badge text-bg-success text-decoration-none" href="{{ url_for('public.dashboard', slug=view.slug) }}" target="_blank" rel="noopener">{{ _('view.published') }} · /v/{{ view.slug }}</a>
+    {% endif %}
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#publish-dialog">{{ _('view.publish_button') }}</button>
   </div>
 </div>
 <div id="editor-message"></div>
@@ -46,9 +50,23 @@
       </div>
     </form>
 
-    <div class="card mb-3">
-      <div class="card-header">{{ _('view.publication') }}</div>
-      <div class="card-body">
+    <form method="post" action="{{ url_for('admin.delete_view', view_id=view.id) }}" onsubmit='return confirm({{ _('view.delete_confirm')|tojson }})'>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-link text-danger btn-sm px-0">{{ _('view.delete') }}</button>
+    </form>
+  </aside>
+  <section class="dl-preview-pane">
+    <div id="dashboard" class="dl-dashboard"></div>
+  </section>
+</div>
+<div class="modal fade" id="publish-dialog" tabindex="-1" aria-labelledby="publish-dialog-title" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="publish-dialog-title">{{ _('view.publication') }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}"></button>
+      </div>
+      <div class="modal-body">
         {% if view.published_at %}
           <p>{{ _('view.published_on', date=view.published_at[:16]) }}
             <a href="{{ url_for('public.dashboard', slug=view.slug) }}" target="_blank" rel="noopener">/v/{{ view.slug }}</a></p>
@@ -56,7 +74,7 @@
           <p class="text-muted">{{ _('view.not_published') }}</p>
         {% endif %}
         <p class="small text-muted">{{ _('view.publish_help') }}</p>
-        <form method="post" action="{{ url_for('admin.publish', view_id=view.id) }}" class="row g-2">
+        <form id="publish-form" method="post" action="{{ url_for('admin.publish', view_id=view.id) }}" class="row g-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-12"><label class="form-label small" for="pub-title">{{ _('view.public_title') }}</label>
             <input id="pub-title" class="form-control form-control-sm" name="title" value="{{ view.public_title or view.name }}" required></div>
@@ -66,26 +84,18 @@
             <div class="input-group input-group-sm"><span class="input-group-text">/v/</span>
             <input id="pub-slug" class="form-control" name="slug" value="{{ view.slug or suggested_slug }}" pattern="[a-z0-9]+(-[a-z0-9]+)*" required></div></div>
           <div class="col-12 d-flex gap-2">
-            <button class="btn btn-success btn-sm" data-needs-saved>{{ _('view.update') if view.published_at else _('view.publish') }}</button>
+            <button class="btn btn-success">{{ _('view.update') if view.published_at else _('view.publish') }}</button>
           </div>
         </form>
         {% if view.published_at %}
         <form method="post" action="{{ url_for('admin.unpublish', view_id=view.id) }}" class="mt-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-outline-secondary btn-sm">{{ _('view.unpublish') }}</button>
+          <button class="btn btn-outline-secondary">{{ _('view.unpublish') }}</button>
         </form>
         {% endif %}
       </div>
     </div>
-
-    <form method="post" action="{{ url_for('admin.delete_view', view_id=view.id) }}" onsubmit="return confirm({{ _('view.delete_confirm')|tojson }})">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-link text-danger btn-sm px-0">{{ _('view.delete') }}</button>
-    </form>
-  </aside>
-  <section class="dl-preview-pane">
-    <div id="dashboard" class="dl-dashboard"></div>
-  </section>
+  </div>
 </div>
 <script type="application/json" id="view-data">{{ {"config": view_config, "described": described, "saveUrl": url_for('admin.save_view', view_id=view.id), "dataUrl": url_for('admin.dataset_data', dataset_id=view.dataset_id)} | tojson }}</script>
 {% endblock %}
