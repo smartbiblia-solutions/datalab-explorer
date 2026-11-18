@@ -12,6 +12,37 @@ const dashboard = new Dashboard($("dashboard"));
 let rows = [];
 let dirty = false;
 let timer = null;
+let stale = false; // settings changed since the dashboard was last drawn
+let drawing = false;
+const LIVE_KEY = "datalab.liveRefresh";
+const LIVE_LIMIT = 5000; // larger datasets start with manual refresh
+
+function storedLive() {
+  try {
+    const v = localStorage.getItem(LIVE_KEY);
+    return v === null ? null : v === "1";
+  } catch {
+    return null;
+  }
+}
+
+function storeLive(value) {
+  try {
+    localStorage.setItem(LIVE_KEY, value ? "1" : "0");
+  } catch {
+    /* private browsing: the choice lasts for this page only */
+  }
+}
+
+function updateRefreshButton() {
+  const live = $("live-refresh").checked;
+  const button = $("refresh-dashboard");
+  button.hidden = live;
+  button.disabled = drawing || !stale;
+  button.classList.toggle("btn-primary", stale);
+  button.classList.toggle("btn-outline-primary", !stale);
+  button.textContent = drawing ? T["js.refreshing"] : T["js.refresh"];
+}
 
 const PANELS = ["left", "middle", "right", "bottom"];
 const TYPES = ["text", "number", "year", "date"];
@@ -64,11 +95,14 @@ function setDirty(value) {
 
 function changed() {
   setDirty(true);
+  stale = true;
   clearTimeout(timer);
-  timer = setTimeout(redraw, 500);
+  if ($("live-refresh").checked) timer = setTimeout(redraw, 500);
+  else updateRefreshButton();
 }
 
 async function redraw() {
+  clearTimeout(timer);
   const labels = config.columns.filter((c) => c.include).map((c) => c.label.trim());
   const duplicate = labels.find((l, i) => labels.indexOf(l) !== i);
   if (duplicate) {
@@ -80,8 +114,24 @@ async function redraw() {
   } else {
     showMessage("");
   }
-  await dashboard.show(rows, config);
+  stale = false;
+  drawing = true;
+  updateRefreshButton();
+  try {
+    await dashboard.show(rows, config);
+  } finally {
+    drawing = false;
+    updateRefreshButton();
+  }
 }
+
+$("live-refresh").addEventListener("change", (e) => {
+  storeLive(e.target.checked);
+  if (e.target.checked && stale) redraw();
+  else updateRefreshButton();
+});
+
+$("refresh-dashboard").addEventListener("click", redraw);
 
 function showMessage(text, kind = "info") {
   $("editor-message").innerHTML = text ? `<div class="alert alert-${kind} py-2 mb-2">${escapeHTML(text)}</div>` : "";
@@ -148,4 +198,5 @@ renderColumns();
 renderDisplay();
 setDirty(false);
 rows = await (await fetch(page.dataUrl)).json();
+$("live-refresh").checked = storedLive() ?? rows.length <= LIVE_LIMIT;
 await redraw();
