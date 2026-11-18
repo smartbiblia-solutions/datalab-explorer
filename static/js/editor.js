@@ -60,7 +60,6 @@ function setDirty(value) {
   dirty = value;
   $("save-state").textContent = value ? T["js.unsaved"] : T["js.saved"];
   $("save-state").classList.toggle("text-warning", value);
-  document.querySelectorAll("[data-needs-saved]").forEach((el) => (el.disabled = value));
 }
 
 function changed() {
@@ -111,7 +110,7 @@ $("display-form").addEventListener("change", () => {
 
 $("view-name").addEventListener("input", () => setDirty(true));
 
-$("save-view").addEventListener("click", async () => {
+async function save() {
   const response = await fetch(page.saveUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
@@ -120,10 +119,20 @@ $("save-view").addEventListener("click", async () => {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     showMessage(result.error || T["js.save_failed"], "danger");
-    return;
+    return false;
   }
   setDirty(false);
   showMessage(result.message, "success");
+  return true;
+}
+
+$("save-view").addEventListener("click", save);
+
+// Publishing uses the saved configuration: save pending changes first.
+$("publish-form").addEventListener("submit", async (e) => {
+  if (!dirty) return;
+  e.preventDefault();
+  if (await save()) e.target.submit();
 });
 
 $("toggle-settings").addEventListener("click", () => {

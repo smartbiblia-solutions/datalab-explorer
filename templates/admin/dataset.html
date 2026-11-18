@@ -14,8 +14,14 @@
         {% for v in views %}
           <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
             <a href="{{ url_for('admin.view_editor', view_id=v.id) }}">{{ v.name }}</a>
-            {% if v.published_at %}<a class="badge text-bg-success text-decoration-none" href="{{ url_for('public.dashboard', slug=v.slug) }}">{{ _('view.published') }} · /v/{{ v.slug }}</a>
-            {% else %}<span class="badge text-bg-secondary">{{ _('view.draft') }}</span>{% endif %}
+            <span class="d-flex align-items-center gap-2">
+              {% if v.published_at %}<a class="badge text-bg-success text-decoration-none" href="{{ url_for('public.dashboard', slug=v.slug) }}">{{ _('view.published') }} · /v/{{ v.slug }}</a>
+              {% else %}<span class="badge text-bg-secondary">{{ _('view.draft') }}</span>{% endif %}
+              <form method="post" action="{{ url_for('admin.delete_view', view_id=v.id) }}" class="m-0" onsubmit='return confirm({{ _('view.delete_confirm')|tojson }})'>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" aria-label="{{ _('dataset.delete_view') }} {{ v.name }}">{{ _('dataset.delete_view') }}</button>
+              </form>
+            </span>
           </li>
         {% else %}
           <li class="list-group-item text-muted">{{ _('dataset.no_view') }}</li>
@@ -60,7 +66,7 @@
       <div class="card-header text-danger">{{ _('dataset.delete') }}</div>
       <div class="card-body">
         <p>{{ _('dataset.delete_help') }}</p>
-        <form method="post" action="{{ url_for('admin.delete_dataset', dataset_id=dataset.id) }}" onsubmit="return confirm({{ _('dataset.delete_confirm', name=dataset.name)|tojson }})">
+        <form method="post" action="{{ url_for('admin.delete_dataset', dataset_id=dataset.id) }}" onsubmit='return confirm({{ _('dataset.delete_confirm', name=dataset.name)|tojson }})'>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-outline-danger">{{ _('dataset.delete') }}</button>
         </form>
